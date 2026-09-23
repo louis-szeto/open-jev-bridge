@@ -1,0 +1,16 @@
+node_modules/
+coverage/
+*.tgz
+*.zip
+.env
+.env.*
+!.env.example
+.DS_Store
+reports/live-test.json
+reports/benchmark-live.json
+reports/host-check.json
+
+__pycache__/
+*.pyc
+.venv/
+*.key

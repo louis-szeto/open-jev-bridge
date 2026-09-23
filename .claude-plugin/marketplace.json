@@ -1,0 +1,18 @@
+{
+  "name": "open-jev-bridge-local",
+  "owner": {
+    "name": "Open Jev Bridge maintainers"
+  },
+  "plugins": [
+    {
+      "name": "open-jev-bridge",
+      "source": "./",
+      "description": "Stable command hooks and configured System One MCP tools"
+    },
+    {
+      "name": "open-jev-bridge-functions",
+      "source": "./plugins/claude-functions",
+      "description": "Opt-in Claude function-hook compaction plus Stop and MCP tools; requires supporting runtime"
+    }
+  ]
+}

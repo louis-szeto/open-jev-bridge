@@ -1,0 +1,106 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/open-jev-bridge.mjs\" hook --host claude --event Stop",
+            "timeout": 25
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/open-jev-bridge.mjs\" hook --host claude --event SessionStart",
+            "timeout": 25
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/open-jev-bridge.mjs\" hook --host claude --event UserPromptSubmit",
+            "timeout": 25
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/open-jev-bridge.mjs\" hook --host claude --event PreToolUse",
+            "timeout": 25
+          }
+        ],
+        "matcher": "^(Bash|PowerShell|bash|shell|shell_command|exec_command|functions\\.(exec_command|shell_command|shell)|Write|Edit|MultiEdit|NotebookEdit|apply_patch|functions\\.apply_patch|WebFetch|mcp__.*)$"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/open-jev-bridge.mjs\" hook --host claude --event PostToolUse",
+            "timeout": 25
+          }
+        ],
+        "matcher": "^(Bash|PowerShell|bash|shell|shell_command|exec_command|functions\\.(exec_command|shell_command|shell)|Write|Edit|MultiEdit|NotebookEdit|apply_patch|functions\\.apply_patch|WebFetch|mcp__.*)$"
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/open-jev-bridge.mjs\" hook --host claude --event PostToolUseFailure",
+            "timeout": 25
+          }
+        ],
+        "matcher": "^(Bash|PowerShell|bash|shell|shell_command|exec_command|functions\\.(exec_command|shell_command|shell)|Write|Edit|MultiEdit|NotebookEdit|apply_patch|functions\\.apply_patch|WebFetch|mcp__.*)$"
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/open-jev-bridge.mjs\" hook --host claude --event SubagentStart",
+            "timeout": 25
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/open-jev-bridge.mjs\" hook --host claude --event SubagentStop",
+            "timeout": 25
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/open-jev-bridge.mjs\" hook --host claude --event TaskCompleted",
+            "timeout": 25
+          }
+        ]
+      }
+    ]
+  }
+}

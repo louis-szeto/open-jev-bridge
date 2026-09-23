@@ -1,0 +1,7 @@
+{
+  "url": "https://api.typesafe.ai",
+  "model": "jev-latest",
+  "provider": "jev",
+  "allowRemote": true,
+  "retries": 1
+}

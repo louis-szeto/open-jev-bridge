@@ -1,0 +1,64 @@
+{
+  "name": "open-jev-bridge",
+  "version": "0.3.0",
+  "description": "Provider-neutral System One MCP tools and hooks for Claude Code and Codex; compatible with Jev, Kev, Laya, and other System One APIs",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "bin": {
+    "open-jev-bridge": "bin/open-jev-bridge.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./compact": "./src/compact.mjs",
+    "./client": "./src/client.mjs"
+  },
+  "files": [
+    "src",
+    "bin",
+    "hooks",
+    "skills",
+    "agents",
+    "scripts",
+    "tests",
+    "benchmarks",
+    "docs",
+    "plugins",
+    ".claude-plugin",
+    ".codex-plugin",
+    ".mcp.json",
+    "codex.mcp.json",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "SECURITY.md",
+    "adapters",
+    "examples",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "start": "node bin/open-jev-bridge.mjs serve",
+    "build": "node scripts/build-plugins.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "npm run test:node && npm run test:adapter",
+    "test:coverage": "node --test --test-concurrency=1 --experimental-test-coverage tests/*.test.mjs",
+    "test:unit": "node --test tests/schema.test.mjs tests/compact.test.mjs tests/belay.test.mjs tests/tools.test.mjs",
+    "test:integration": "node --test --test-concurrency=1 tests/client.test.mjs tests/mcp.test.mjs tests/install.test.mjs tests/hooks.test.mjs",
+    "test:e2e": "node --test --test-concurrency=1 tests/e2e.test.mjs",
+    "test:live": "node scripts/live-test.mjs",
+    "test:hosts": "node scripts/host-check.mjs",
+    "benchmark": "node benchmarks/run.mjs",
+    "benchmark:live": "node benchmarks/run.mjs --live",
+    "validate:plugin": "node scripts/check.mjs",
+    "verify": "npm run check && npm test && npm run benchmark",
+    "validate": "node scripts/validate-all.mjs",
+    "report:readme": "node scripts/update-readme.mjs",
+    "test:node": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "test:adapter": "python3 scripts/test-adapter.py",
+    "test:providers": "node --test --test-concurrency=1 tests/providers.test.mjs tests/laya-e2e.test.mjs",
+    "test:automation": "node --test --test-concurrency=1 tests/automation.test.mjs tests/automation-e2e.test.mjs"
+  },
+  "private": true
+}

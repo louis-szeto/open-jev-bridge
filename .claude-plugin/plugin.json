@@ -1,0 +1,7 @@
+{
+  "name": "open-jev-bridge",
+  "version": "0.3.0",
+  "description": "System One judgments, completion verification and safe compaction checkpoints.",
+  "license": "MIT",
+  "hooks": "./hooks/claude.json"
+}

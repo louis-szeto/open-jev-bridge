@@ -1,0 +1,10 @@
+{
+  "name": "open-jev-bridge-functions",
+  "version": "0.3.0",
+  "description": "Opt-in configured System One verbatim compaction via Claude function hooks, completion Stop hook, and MCP tools",
+  "license": "MIT",
+  "hooks": [
+    "./hooks/commands.json",
+    "./hooks/functions.json"
+  ]
+}

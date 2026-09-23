@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "open-jev-bridge": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/open-jev-bridge.mjs", "serve"]
+    }
+  }
+}
