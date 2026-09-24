@@ -103,7 +103,8 @@ test('Environment-selected nonsecret endpoint persists for filtered host environ
 });
 
 test('Generated optional Claude plugin includes the same automatic workflow without duplicate checkpoint compaction',async t=>{
- await buildPlugins();t.after(async()=>{await fs.rm(path.join(ROOT,'plugins','claude-functions'),{recursive:true,force:true});const file=path.join(ROOT,'.claude-plugin','marketplace.json');const marketplace=JSON.parse(await fs.readFile(file,'utf8'));marketplace.plugins=(marketplace.plugins??[]).filter(p=>p.name!=='open-jev-bridge-functions');await fs.writeFile(file,JSON.stringify(marketplace,null,2)+'\n');});
+ await buildPlugins(); // Regenerates and preserves the deliberately bundled plugin.
+
  const config=JSON.parse(await fs.readFile(path.join(ROOT,'plugins/claude-functions/hooks/commands.json')));
  for(const key of ['Stop','TaskCompleted','SubagentStop','PreToolUse','PostToolUse','UserPromptSubmit','SessionStart'])assert.ok(config.hooks[key]);
  assert.equal(config.hooks.PreCompact,undefined);

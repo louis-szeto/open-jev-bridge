@@ -50,13 +50,28 @@ export const result=(id,text='',extra={})=>({role:'user',text:'',toolUses:[],too
 export function history(n=5,size=1500){const m=[user('Inspect and implement the parser')];for(let i=0;i<n;i++){m.push(assistant(`Step ${i}`,[use(`t${i}`)]));m.push(result(`t${i}`,'x'.repeat(size)));}m.push(user('Keep working on the parser'),assistant('Continuing.'));return m;}
 export function unverified(){return [user('Fix the bug'),assistant('',[use('edit','Edit',{file_path:'a.js',old_string:'a',new_string:'b'})]),result('edit','Updated'),assistant('Implemented and verified. All tests passed.')];}
 export function verified(){const m=unverified();m.pop();m.push(assistant('',[use('check','Bash',{command:'npm test'})]),result('check','5 passed',{exitCode:0}),assistant('Done, tests pass'));return m;}
+/** Offline children must not inherit real provider credentials or host config overrides. */
+export function isolatedEnv(overrides={},base=process.env){
+ const inherited=Object.fromEntries(Object.entries(base).filter(([key])=>
+  !/^(SYSTEM_ONE_|OPEN_JEV_BRIDGE_)/.test(key)&&
+  !['CLAUDE_CONFIG_DIR','CODEX_HOME','XDG_CONFIG_HOME','XDG_STATE_HOME'].includes(key)));
+ return {...inherited,...overrides};
+}
 export async function command(args,{env={},input,command=process.execPath,timeout=10000,cwd=ROOT}={}){
- const child=spawn(command,args,{cwd,env:{...process.env,...env},stdio:['pipe','pipe','pipe']});let stdout='',stderr='';child.stdout.on('data',x=>stdout+=x);child.stderr.on('data',x=>stderr+=x);const timer=setTimeout(()=>child.kill('SIGKILL'),timeout);
- if(input!==undefined)child.stdin.end(typeof input==='string'?input:JSON.stringify(input));else child.stdin.end();
- const [code,signal]=await once(child,'exit');clearTimeout(timer);return {code,signal,stdout,stderr};
+ const home=Object.hasOwn(env,'HOME')?null:await temp();
+ const defaults=home?{HOME:home,XDG_CONFIG_HOME:path.join(home,'.config'),XDG_STATE_HOME:path.join(home,'.state')}:{};
+ let timer;
+ try{
+  const child=spawn(command,args,{cwd,env:isolatedEnv({...defaults,...env}),stdio:['pipe','pipe','pipe']});
+  let stdout='',stderr='';child.stdout.on('data',x=>stdout+=x);child.stderr.on('data',x=>stderr+=x);
+  timer=setTimeout(()=>child.kill('SIGKILL'),timeout);
+  const closed=once(child,'close');
+  child.stdin.end(input===undefined?undefined:typeof input==='string'?input:JSON.stringify(input));
+  const [code,signal]=await closed;return {code,signal,stdout,stderr};
+ }finally{clearTimeout(timer);if(home)await fs.rm(home,{recursive:true,force:true});}
 }
 export async function mcpProcess(url,{env={},timeout=10000}={}){
- const home=await temp(),child=spawn(process.execPath,[BIN,'serve'],{env:{...process.env,HOME:home,XDG_CONFIG_HOME:path.join(home,'.config'),XDG_STATE_HOME:path.join(home,'.state'),SYSTEM_ONE_URL:url,SYSTEM_ONE_TIMEOUT_MS:'2000',...env},stdio:['pipe','pipe','pipe']});
+ const home=await temp(),child=spawn(process.execPath,[BIN,'serve'],{env:isolatedEnv({HOME:home,XDG_CONFIG_HOME:path.join(home,'.config'),XDG_STATE_HOME:path.join(home,'.state'),SYSTEM_ONE_URL:url,SYSTEM_ONE_TIMEOUT_MS:'2000',...env}),stdio:['pipe','pipe','pipe']});
  let seq=1,buffer='',stderr='';const pending=new Map(),messages=[];
  child.stdout.setEncoding('utf8');child.stdout.on('data',s=>{buffer+=s;let i;while((i=buffer.indexOf('\n'))!==-1){const line=buffer.slice(0,i);buffer=buffer.slice(i+1);if(!line.trim())continue;let m;try{m=JSON.parse(line);}catch{throw new Error(`Nonprotocol stdout: ${line}`);}messages.push(m);const p=pending.get(m.id);if(p){clearTimeout(p.timer);pending.delete(m.id);p.resolve(m);}}});child.stderr.on('data',s=>stderr+=s);
  const send=x=>child.stdin.write(JSON.stringify(x)+'\n');

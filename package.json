@@ -1,7 +1,7 @@
 {
   "name": "open-jev-bridge",
-  "version": "0.3.0",
-  "description": "Provider-neutral System One MCP tools and hooks for Claude Code and Codex; compatible with Jev, Kev, Laya, and other System One APIs",
+  "version": "0.4.0",
+  "description": "Provider-neutral System One MCP tools and automatic Claude Code/Codex hooks, supporting Jev, Kev, Laya, Mapika Decider and Shisa DE-1",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -57,8 +57,9 @@
     "report:readme": "node scripts/update-readme.mjs",
     "test:node": "node --test --test-concurrency=1 tests/*.test.mjs",
     "test:adapter": "python3 scripts/test-adapter.py",
-    "test:providers": "node --test --test-concurrency=1 tests/providers.test.mjs tests/laya-e2e.test.mjs",
-    "test:automation": "node --test --test-concurrency=1 tests/automation.test.mjs tests/automation-e2e.test.mjs"
+    "test:providers": "node --test --test-concurrency=1 tests/providers.test.mjs tests/laya-e2e.test.mjs tests/local-models.test.mjs tests/local-models-e2e.test.mjs",
+    "test:automation": "node --test --test-concurrency=1 tests/automation.test.mjs tests/automation-e2e.test.mjs",
+    "benchmark:providers": "node benchmarks/providers.mjs"
   },
   "private": true
 }

@@ -90,3 +90,13 @@ On **each actual native client**, after configuring the provider and trusting th
 7. Disconnect the provider. Confirm checks are recorded as unavailable, no verification is certified, and the host is not trapped in a loop. Reconnect, change evidence, and confirm review runs again.
 
 Record host versions, provider/model versions, chosen settings and observed hook trace in a local acceptance report. No live native or real-model pass is claimed in the supplied offline validation report.
+
+## Decider/Shisa regression commands
+
+`npm run test:providers` includes the new native-format adapters, all 14 MCP tools, actual CLI/MCP/installed-hook subprocess paths, and the bundled Claude function callback. `npm run test:adapter` includes both Python sidecars without ML dependencies. `npm run benchmark:providers` records separately labelled fixture transport overhead. `npm run validate` runs all of these tests plus coverage and both benchmarks. Test fixtures cannot be selected by production serving commands. Generated evidence lives under `reports/` and is deliberately not shipped in the clean ZIP. Read [LOCAL_MODELS.md](LOCAL_MODELS.md) for the upstream payload audit and the distinction between protocol e2e and actual native-host/model acceptance.
+
+Offline subprocess tests isolate their HOME/config directories and strip inherited
+`SYSTEM_ONE_*` credentials and endpoint settings unless a test explicitly supplies
+fixture values. This prevents a developer's active model configuration from changing
+fixture behavior. Live test/benchmark commands still deliberately use the configured
+backend and do not substitute fixtures.

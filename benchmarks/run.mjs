@@ -4,12 +4,20 @@ import {mockSystemOne,mcpProcess,history,verified,envelope,command,BIN,temp} fro
 const root=fileURLToPath(new URL('../',import.meta.url)),live=process.argv.includes('--live'),server=live?null:await mockSystemOne(),config=live?resolveConfig():resolveConfig({url:server.url},{},{readFile:false});
 // Live mode intentionally uses the environment and config; offline always uses its ephemeral fixture.
 const liveConfig=config,client=new SystemOneClient(liveConfig);let mcp,home;
+// Live children get the explicitly resolved nonsecret tuning; offline helpers strip inherited provider settings.
+const providerTuning={
+ SYSTEM_ONE_SHISA_TOP_LOGPROBS:String(config.shisaTopLogprobs),
+ SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS:String(config.shisaMaxPromptTokens),
+ SYSTEM_ONE_SHISA_NOUL_TEMPERATURE:String(config.shisaNoulTemperature),
+ SYSTEM_ONE_SHISA_CHOICE_TEMPERATURE:String(config.shisaChoiceTemperature),
+ SYSTEM_ONE_SHISA_SCORE_TEMPERATURE:String(config.shisaScoreTemperature),
+};
 const percentile=(a,p)=>a[Math.max(0,Math.ceil(a.length*p)-1)];
 async function measure(name,n,warmup,fn){for(let i=0;i<warmup;i++)await fn();const samples=[],start=performance.now();for(let i=0;i<n;i++){const t=performance.now();await fn();samples.push(performance.now()-t);}const elapsed=performance.now()-start; samples.sort((a,b)=>a-b);return {name,iterations:n,warmup,p50_ms:percentile(samples,.5),p95_ms:percentile(samples,.95),p99_ms:percentile(samples,.99),mean_ms:samples.reduce((a,b)=>a+b,0)/n,throughput_per_second:n*1000/elapsed};}
 try{
  const models=await client.models(),q={q:{type:'noul',instructions:'Does the text say the label is blue?'}},requestState='The label is blue.',results=[];
  results.push(await measure('direct_http_system_one',live?20:100,live?2:10,()=>client.ask(requestState,q)));
- mcp=await mcpProcess(liveConfig.url,{env:{SYSTEM_ONE_PROVIDER:liveConfig.provider,SYSTEM_ONE_TIMEOUT_MS:String(liveConfig.timeoutMs),SYSTEM_ONE_MODEL:liveConfig.model,...(liveConfig.apiKey?{SYSTEM_ONE_API_KEY:liveConfig.apiKey}:{}),...(liveConfig.allowRemote?{SYSTEM_ONE_ALLOW_REMOTE:'1'}:{})},timeout:liveConfig.timeoutMs+5000});
+ mcp=await mcpProcess(liveConfig.url,{env:{...providerTuning,SYSTEM_ONE_PROVIDER:liveConfig.provider,SYSTEM_ONE_TIMEOUT_MS:String(liveConfig.timeoutMs),SYSTEM_ONE_MODEL:liveConfig.model,...(liveConfig.apiKey?{SYSTEM_ONE_API_KEY:liveConfig.apiKey}:{}),...(liveConfig.allowRemote?{SYSTEM_ONE_ALLOW_REMOTE:'1'}:{})},timeout:liveConfig.timeoutMs+5000});
  results.push(await measure('stdio_mcp_to_http',live?20:100,live?2:10,async()=>{const r=await mcp.request('tools/call',{name:'system_one_query',arguments:{state:requestState,questions:q}});assert.equal(r.result.isError,false);}));
  const historyInput=history(8,2000),compactOptions={preserveRecentMessages:2};let compactResult;
  results.push(await measure(live?'compaction_with_live_system_one':'compaction_pure_fixture',live?3:100,live?0:5,async()=>{compactResult=await compact(historyInput,live?(s,q)=>client.ask(s,q):async(_s,q)=>envelope(q),compactOptions);}));
@@ -20,7 +28,7 @@ try{
  results.push(await measure('stop_hook_process_verified_no_model',10,1,async()=>{const r=await command([BIN,'hook','--host','codex','--event','Stop'],{env:{HOME:home,XDG_CONFIG_HOME:path.join(home,'.config'),XDG_STATE_HOME:path.join(home,'.state'),SYSTEM_ONE_AUTO_REVIEW:'0'},input:{session_id:'bench',transcript_path:transcript,cwd:home}});assert.equal(r.code,0);assert.deepEqual(JSON.parse(r.stdout),{});}));
  let reviewSession=0;
  results.push(await measure('stop_hook_process_automatic_task_review',live?3:10,live?0:1,async()=>{
-  const r=await command([BIN,'hook','--host','codex','--event','Stop'],{env:{HOME:home,XDG_CONFIG_HOME:path.join(home,'.config'),XDG_STATE_HOME:path.join(home,'.state'),SYSTEM_ONE_URL:liveConfig.url,SYSTEM_ONE_MODEL:liveConfig.model,SYSTEM_ONE_PROVIDER:liveConfig.provider,SYSTEM_ONE_ALLOW_REMOTE:String(liveConfig.allowRemote),SYSTEM_ONE_TIMEOUT_MS:String(liveConfig.timeoutMs),...(liveConfig.apiKey?{SYSTEM_ONE_API_KEY:liveConfig.apiKey}:{})},input:{session_id:`bench-review-${reviewSession++}`,transcript_path:transcript,cwd:home},timeout:liveConfig.timeoutMs+5000});
+  const r=await command([BIN,'hook','--host','codex','--event','Stop'],{env:{HOME:home,XDG_CONFIG_HOME:path.join(home,'.config'),XDG_STATE_HOME:path.join(home,'.state'),...providerTuning,SYSTEM_ONE_URL:liveConfig.url,SYSTEM_ONE_MODEL:liveConfig.model,SYSTEM_ONE_PROVIDER:liveConfig.provider,SYSTEM_ONE_ALLOW_REMOTE:String(liveConfig.allowRemote),SYSTEM_ONE_TIMEOUT_MS:String(liveConfig.timeoutMs),...(liveConfig.apiKey?{SYSTEM_ONE_API_KEY:liveConfig.apiKey}:{})},input:{session_id:`bench-review-${reviewSession++}`,transcript_path:transcript,cwd:home},timeout:liveConfig.timeoutMs+5000});
   assert.equal(r.code,0,r.stderr);const out=JSON.parse(r.stdout);assert.ok(!out.systemMessage,'Automatic-review benchmark must not silently measure unavailable fallback');
   if(!live)assert.deepEqual(out,{});
  }));

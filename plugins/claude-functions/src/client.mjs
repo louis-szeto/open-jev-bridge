@@ -1,6 +1,7 @@
 import {BridgeError,invariant,isRecord,utf8Bytes} from './pure.mjs';
 import {validateRequest,RESPONSE_RULES} from './schema.mjs';
 import {validateProviderRequest,responseRules,normalizeModels} from './providers.mjs';
+import {askShisa} from './shisa.mjs';
 import {endpoint,resolveConfig} from './config.mjs';
 
 export class Semaphore {
@@ -23,20 +24,31 @@ export class Semaphore {
 }
 export class SystemOneClient {
   constructor(config={}, {fetchImpl=globalThis.fetch, now=Date.now}={}) {
-    this.config=resolveConfig(config,{}, {readFile:false}); this.urls=endpoint(this.config.url,this.config.allowRemote);
+    this.config=resolveConfig(config,{}, {readFile:false}); this.urls=endpoint(this.config.url,this.config.allowRemote,this.config.provider);
     this.fetch=fetchImpl; this.now=now; this.semaphore=new Semaphore(this.config.maxConcurrent,this.config.maxQueue);
     this.failures=0; this.openUntil=0; this.probing=false;
     this.metrics={requests:0,failures:0,retries:0,bytesSent:0,bytesReceived:0};
   }
   async ask(state,questions,{signal,model}={}) {
     const body={state,questions,model:model??this.config.model}; validateRequest(body,this.config.provider==='laya'?64:512);validateProviderRequest(body,this.config.provider);
-    const response=await this.request(this.urls.systemOne,'POST',body,signal);
+    let response;
+    if(this.config.provider==='shisa'){
+      // One deadline covers tokenization, all question readouts, missing-letter fallbacks,
+      // and time waiting for the shared HTTP semaphore. No per-question budget reset.
+      const control=new AbortController();
+      const timer=setTimeout(()=>control.abort(new BridgeError('timeout','Shisa logical request timed out')),this.config.timeoutMs);
+      const abort=()=>control.abort(signal.reason??new BridgeError('cancelled','Request cancelled'));
+      if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});
+      try{response=await askShisa(body,this.config,this.urls,(url,method,payload)=>this.request(url,method,payload,control.signal));}
+      catch(e){control.abort(e);throw e;}
+      finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
+    }else response=await this.request(this.urls.systemOne,'POST',body,signal);
     invariant(isRecord(response)&&isRecord(response.answers)&&typeof response.model==='string'&&response.model.length>0,'Missing System One model/answers envelope','invalid_response');
     Object.defineProperty(response,RESPONSE_RULES,{value:responseRules(this.config.provider)});return response;
   }
   async models({signal}={}) {
     const r=await this.request(this.urls.models,'GET',undefined,signal);
-    return normalizeModels(r);
+    return normalizeModels(r,this.config.provider);
   }
   async request(url,method,payload,callerSignal) {
     const c=this.config; const serialized=payload===undefined?undefined:JSON.stringify(payload);

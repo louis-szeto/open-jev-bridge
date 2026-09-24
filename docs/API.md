@@ -116,3 +116,9 @@ Decision state omits full result bodies and progressively shortens older visible
 The server implements stdio newline-delimited JSON-RPC 2.0, initialization/version negotiation, initialized notifications, ping, tools/list, tools/call and cancellation. Supported protocol versions are 2025-11-25, 2025-06-18, 2025-03-26 and 2024-11-05; unsupported versions negotiate the newest supported version for the client to accept or reject. It does not advertise resources, prompts, sampling, HTTP MCP transport or batch RPC. Stdout contains protocol messages only. Tool errors use `isError:true`; malformed RPC uses JSON-RPC error codes. Up to 16 tool calls can be pending; individual inbound frames are bounded to 4 MB. The Node HTTP layer adds independent concurrency/queue/body limits and deadlines.
 
 This is an independent protocol implementation, not a claim of official MCP SDK certification. A real subprocess test client exercises the on-wire lifecycle, every tool, cancellation, malformed input, Unicode chunking and process behavior. Native-host acceptance still needs the actual host versions.
+
+## Provider-native translations
+
+The MCP input/output interface is unchanged for `decider` and `shisa`. Decider uses `/v1/systemone`; `/decide` is not accepted as a substitute. Shisa uses `/tokenize`, `/v1/completions` and OpenAI-shaped `/v1/models`, not `/v1/systemone`. Its raw-query result includes a `bridge` diagnostic object recording HTTP/readout/fallback request counts and explicit score/confidence/temperature policies. Those diagnostics do not authorize actions. Endpoint suffixes `/v1`, `/v1/systemone`, `/v1/completions` are normalized while preserving a reverse-proxy prefix.
+
+Exact request/response contracts, malformed-response handling and option limits: [LOCAL_MODELS.md](LOCAL_MODELS.md).

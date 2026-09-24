@@ -47,7 +47,7 @@ def _json_content(value: Any) -> None:
     raise ContractError("Unsupported JSON value")
 
 
-def validate_request(request: Any, model: str) -> dict:
+def validate_request(request: Any, model: str, max_questions: int = MAX_QUESTIONS) -> dict:
     if not isinstance(request, dict) or set(request) != {"model", "state", "questions"}:
         raise ContractError("Required fields are model, state, questions; unknown fields are rejected")
     if request["model"] != model:
@@ -55,8 +55,8 @@ def validate_request(request: Any, model: str) -> dict:
     if not isinstance(request["state"], (str, dict, list)):
         raise ContractError("state must be string, object or array")
     questions = request["questions"]
-    if not isinstance(questions, dict) or not 1 <= len(questions) <= MAX_QUESTIONS:
-        raise ContractError("questions must contain 1..64 entries; split larger batches")
+    if not isinstance(questions, dict) or not 1 <= len(questions) <= max_questions:
+        raise ContractError(f"questions must contain 1..{max_questions} entries; split larger batches")
     _json_content(request)
     for qid, question in questions.items():
         if not isinstance(qid, str) or not 1 <= len(qid) <= 256:

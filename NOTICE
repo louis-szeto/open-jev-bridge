@@ -7,3 +7,9 @@ Open Jev Bridge is an independent, original implementation inspired by the behav
 - TypeSafe official API documentation: hosted Jev wire contracts and authentication.
 
 No upstream repository source files, model weights, SDK binaries or third-party npm packages are vendored. Short interface names and protocol schemas are used for compatibility. Question prompts, implementation, tests and documentation here were written for this repository. Upstream names do not imply endorsement. Review provenance and selected source blob identifiers in docs/UPSTREAM_REVIEW.md. Kev/Laya models and base-model weights have their own licenses and are not included in this MIT license.
+
+Additional interface research for 0.4.0:
+- Mapika/decider and Mapika/decider-35b-a3b (Apache-2.0): native System One contract and eager inference API.
+- shisa-ai/shisa-de-1 (Apache-2.0 model card): restricted-letter prompt/readout contract and chat scaffold.
+- vllm-project/vllm (Apache-2.0): HTTP tokenization/completion protocol definitions.
+No model weights or complete upstream runtime sources are redistributed here. Local wrappers, translations and explicitly synthetic tests are bridge implementations; sources/identifiers are recorded in docs/LOCAL_MODELS.md.

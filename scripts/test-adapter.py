@@ -13,7 +13,7 @@ summary = {"python": platform.python_version(), "tests": result.testsRun,
            "failed": len(result.failures), "errors": len(result.errors),
            "skipped": len(result.skipped),
            "passed": result.testsRun - len(result.failures) - len(result.errors) - len(result.skipped),
-           "fixture_backend": True, "real_laya_inference": "NOT_EXECUTED",
+           "fixture_backend": True, "real_laya_inference": "NOT_EXECUTED", "real_decider_inference": "NOT_EXECUTED",
            "all_green": result.wasSuccessful() and not result.skipped}
 (root / "reports").mkdir(exist_ok=True)
 (root / "reports/adapter-validation.json").write_text(json.dumps(summary, indent=2) + "\n")

@@ -6,11 +6,9 @@ coverage/
 .env.*
 !.env.example
 .DS_Store
-reports/live-test.json
-reports/benchmark-live.json
-reports/host-check.json
+reports/
 
 __pycache__/
 *.pyc
-.venv/
+.venv*/
 *.key

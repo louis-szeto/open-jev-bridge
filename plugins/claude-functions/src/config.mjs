@@ -2,6 +2,7 @@ import {readFileSync,openSync,closeSync,fstatSync,readSync,constants} from 'node
 import {homedir} from 'node:os';
 import {join,isAbsolute} from 'node:path';
 import {PROVIDERS} from './providers.mjs';
+import {serviceEndpoints} from './endpoints.mjs';
 import {invariant, isRecord} from './pure.mjs';
 
 export const DEFAULTS = Object.freeze({
@@ -15,20 +16,11 @@ export const DEFAULTS = Object.freeze({
   maxCheckpointBytes:4000000, compactAtPercent:60,
   autoVerify:true, autoReview:true, autoScreen:true, autoCompaction:true,
   maxEventBytes:32768, maxEvidenceBytes:1000000, maxEvidenceEvents:512,
-  evidenceTtlMs:86400000, screenMaxChars:3000
+  evidenceTtlMs:86400000, screenMaxChars:3000,
+  shisaTopLogprobs:20, shisaMaxPromptTokens:32768,
+  shisaNoulTemperature:1, shisaChoiceTemperature:1, shisaScoreTemperature:1
 });
-export function endpoint(url, allowRemote = false) {
-  invariant(typeof url === 'string', 'System One URL must be a string');
-  let u; try { u = new URL(url); } catch { invariant(false,'Invalid System One URL'); }
-  invariant(['http:','https:'].includes(u.protocol) && !u.username && !u.password && !u.search && !u.hash, 'Use HTTP(S) without URL credentials, query or fragment');
-  if (u.hostname.toLowerCase() === 'localhost') u.hostname='127.0.0.1';
-  const local = /^127(?:\.\d{1,3}){3}$/.test(u.hostname) || u.hostname === '[::1]';
-  invariant(local || allowRemote, 'Non-loopback System One URL requires explicit allowRemote / --allow-remote');
-  let path=u.pathname.replace(/\/+$/,'');
-  if (path.endsWith('/v1/systemone')) path=path.slice(0,-'/systemone'.length);
-  else if (!path.endsWith('/v1')) path+='/v1';
-  return {systemOne:`${u.origin}${path}/systemone`,models:`${u.origin}${path}/models`,local};
-}
+export const endpoint = serviceEndpoints;
 export function paths(env = process.env) {
   const home=env.HOME || homedir();
   return {home, config:env.OPEN_JEV_BRIDGE_CONFIG || join(env.XDG_CONFIG_HOME || join(home,'.config'),'open-jev-bridge','config.json'),
@@ -40,7 +32,7 @@ export function resolveConfig(overrides = {}, env = process.env, {readFile=true}
   invariant(isRecord(file) && isRecord(overrides), 'Configuration must be an object');
   for(const k of [...Object.keys(file),...Object.keys(overrides)]) invariant(Object.hasOwn(DEFAULTS,k) || ['apiKey','apiKeyFile','dataDir'].includes(k), `Unknown configuration key: ${k}`);
   const fromEnv={};
-  const variables={SYSTEM_ONE_AUTO_VERIFY:'autoVerify',SYSTEM_ONE_AUTO_REVIEW:'autoReview',SYSTEM_ONE_AUTO_SCREEN:'autoScreen',SYSTEM_ONE_AUTO_COMPACTION:'autoCompaction',SYSTEM_ONE_COMPACT_AT_PERCENT:'compactAtPercent',SYSTEM_ONE_PROVIDER:'provider',SYSTEM_ONE_API_KEY_FILE:'apiKeyFile',SYSTEM_ONE_URL:'url',SYSTEM_ONE_MODEL:'model',SYSTEM_ONE_API_KEY:'apiKey',SYSTEM_ONE_TIMEOUT_MS:'timeoutMs',SYSTEM_ONE_ALLOW_REMOTE:'allowRemote',SYSTEM_ONE_JEV_ALIASES:'aliases',SYSTEM_ONE_BELAY_SHADOW:'shadow'};
+  const variables={SYSTEM_ONE_SHISA_TOP_LOGPROBS:'shisaTopLogprobs',SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS:'shisaMaxPromptTokens',SYSTEM_ONE_SHISA_NOUL_TEMPERATURE:'shisaNoulTemperature',SYSTEM_ONE_SHISA_CHOICE_TEMPERATURE:'shisaChoiceTemperature',SYSTEM_ONE_SHISA_SCORE_TEMPERATURE:'shisaScoreTemperature',SYSTEM_ONE_AUTO_VERIFY:'autoVerify',SYSTEM_ONE_AUTO_REVIEW:'autoReview',SYSTEM_ONE_AUTO_SCREEN:'autoScreen',SYSTEM_ONE_AUTO_COMPACTION:'autoCompaction',SYSTEM_ONE_COMPACT_AT_PERCENT:'compactAtPercent',SYSTEM_ONE_PROVIDER:'provider',SYSTEM_ONE_API_KEY_FILE:'apiKeyFile',SYSTEM_ONE_URL:'url',SYSTEM_ONE_MODEL:'model',SYSTEM_ONE_API_KEY:'apiKey',SYSTEM_ONE_TIMEOUT_MS:'timeoutMs',SYSTEM_ONE_ALLOW_REMOTE:'allowRemote',SYSTEM_ONE_JEV_ALIASES:'aliases',SYSTEM_ONE_BELAY_SHADOW:'shadow'};
   for(const [k,target] of Object.entries(variables)) if(env[k] !== undefined && env[k] !== '') {
     const value=env[k];
     if(typeof DEFAULTS[target] === 'boolean') { invariant(['true','false','1','0'].includes(value),`Invalid boolean ${k}`); fromEnv[target]=value==='true'||value==='1'; }
@@ -48,15 +40,18 @@ export function resolveConfig(overrides = {}, env = process.env, {readFile=true}
     else fromEnv[target]=value;
   }
   const c={...DEFAULTS,...file,...fromEnv,...overrides,dataDir:overrides.dataDir ?? file.dataDir ?? p.data};
-  endpoint(c.url,c.allowRemote);
-  invariant(PROVIDERS.includes(c.provider),'Invalid provider; use generic, jev, kev or laya');
+  endpoint(c.url,c.allowRemote,c.provider);
+  invariant(PROVIDERS.includes(c.provider),'Invalid provider; use generic, jev, kev, laya, decider or shisa');
   if(c.apiKeyFile!==undefined){invariant(typeof c.apiKeyFile==='string'&&isAbsolute(c.apiKeyFile),'apiKeyFile must be an absolute path');if(!c.apiKey)c.apiKey=readSecret(c.apiKeyFile);}
   invariant(typeof c.model==='string' && c.model.length>0 && c.model.length<=200,'Invalid model');
   for(const key of ['allowRemote','aliases','shadow','autoVerify','autoReview','autoScreen','autoCompaction']) invariant(typeof c[key]==='boolean',`Invalid ${key}`);
   for(const key of ['keepThreshold','minReductionRatio','belayThreshold']) invariant(Number.isFinite(c[key])&&c[key]>=0&&c[key]<=1,`Invalid ${key}`);
-  for(const key of Object.keys(DEFAULTS).filter(k=>typeof DEFAULTS[k]==='number' && !['keepThreshold','minReductionRatio','belayThreshold'].includes(k))) {
+  for(const key of Object.keys(DEFAULTS).filter(k=>typeof DEFAULTS[k]==='number' && !['keepThreshold','minReductionRatio','belayThreshold','shisaNoulTemperature','shisaChoiceTemperature','shisaScoreTemperature'].includes(k))) {
     invariant(Number.isSafeInteger(c[key]) && c[key]>=0,`Invalid integer ${key}`);
   }
+  for(const k of ['shisaNoulTemperature','shisaChoiceTemperature','shisaScoreTemperature']) invariant(Number.isFinite(c[k])&&c[k]>=.01&&c[k]<=100,`Invalid ${k}`);
+  invariant(c.shisaTopLogprobs>=1&&c.shisaTopLogprobs<=100,'shisaTopLogprobs must be 1..100');
+  invariant(c.shisaMaxPromptTokens>=64&&c.shisaMaxPromptTokens<=262144,'Invalid shisaMaxPromptTokens');
   invariant(c.timeoutMs>=1&&c.timeoutMs<=300000,'timeoutMs must be 1..300000');
   invariant(c.maxConcurrent>=1&&c.maxConcurrent<=16&&c.maxQueue<=256,'Concurrency limits invalid');
   invariant(c.retries<=2&&c.breakerFailures>=1&&c.breakerCooldownMs>=1,'Retry/breaker limits invalid');

@@ -32,3 +32,7 @@ Automatic patch/completion gates send selected observed edits and check evidence
 The bridge never executes project tests from a hook or auto-grants tool permissions. It asks the main agent to use its normal authorized tools. Event ledgers are private local files, may contain tool inputs/results, and should be treated as sensitive. Gaps and overflows disable confident verification. Advisory screening is neither universal coverage nor a prompt-injection-proof enforcement layer.
 
 See docs/AUTOMATION.md for shared-session child observation handling, bounded continuation and failure behavior.
+
+## Native local-model adapters
+
+Decider and Shisa use explicitly configured local endpoints; no URL is inferred from model output. Shisa never treats generated text as a typed judgment. Its tokenizer, option IDs, prompt prefix, top logprobs and forced-append logprobs are validated; absent evidence is not filled with fabricated zeros. Only the declared 26-letter readout is supported. The Decider wrapper rejects truncation before GPU admission and requires eager BF16 CUDA loading. Both sidecars reuse bounded loopback HTTP plumbing and optional bearer authentication. A client timeout does not cancel already-running CUDA kernels. Native Claude owns isolated-hook I/O cancellation; the bridge enforces elapsed-budget checks between requests and before returning compaction. Calibrate thresholds separately for each backend.

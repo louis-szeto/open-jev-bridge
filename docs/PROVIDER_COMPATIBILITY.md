@@ -56,3 +56,9 @@ Compatibility does not mean an identical supported superset. In particular, this
 Read `reports/validation.json` and `reports/adapter-validation.json` for actual run counts. Live Jev, Kev and Laya inference and authenticated host sessions were **not executed**: no models, API credentials or host sessions were available. Run `npm run test:live` separately for each configured backend. That acceptance suite intentionally fails, rather than silently skipping, when context budgets or semantic checks are unmet. Laya's short context may prevent long-context compaction/review acceptance even though its transport and short requests conform.
 
 No equivalence of accuracy, calibration, confidence thresholds, hardware performance, information retention or prompt-injection resistance is asserted.
+
+## Local Decider and Shisa extension (0.4.0)
+
+See [LOCAL_MODELS.md](LOCAL_MODELS.md) for the additional source identifiers, exact payloads and serving commands. `decider` uses native System One with 2–255 Choice options, 2–10 Score levels, four-decimal probabilities/two-decimal scores, and `models[].name`. The bundled eager CUDA wrapper honors the 35B checkpoint's `use_graphs=False` requirement. `shisa` is a different transport: verified chat/tokenization scaffold → vLLM single-token completions → restricted A–Z logprobs, with forced-prompt recovery for missing letters. Its Score mean and maximum-probability confidence are bridge-defined; they are not claimed to reproduce Jev's confidence statistic.
+
+The shared tools, ordinary automatic hooks and bundled Claude function hook use the same adapters. Additional Node/Python tests cover real HTTP/subprocesses and named synthetic neural/tokenizer fixtures. Actual Decider/Shisa weights, vLLM GPU serving and authenticated native host sessions were not available here. No live-inference or calibrated-quality parity is claimed.

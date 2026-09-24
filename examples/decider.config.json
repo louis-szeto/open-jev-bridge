@@ -1,0 +1,7 @@
+{
+  "url": "http://127.0.0.1:8011",
+  "model": "decider-35b-a3b",
+  "provider": "decider",
+  "maxConcurrent": 1,
+  "timeoutMs": 20000
+}

@@ -16,6 +16,7 @@ const commands = [
   ['adapter', [process.env.PYTHON ?? 'python3', 'scripts/test-adapter.py']],
   ['coverage', [process.execPath, ...testArgs, '--experimental-test-coverage', ...tests]],
   ['benchmark', [process.execPath, 'benchmarks/run.mjs']],
+  ['provider-benchmark', [process.execPath, 'benchmarks/providers.mjs']],
 ];
 const runs = [];
 for (const [name, [exe, ...args]] of commands) {
@@ -52,10 +53,10 @@ const summary = {
     cancelled: count('cancelled'), skipped: count('skipped')},
   adapter_tests: adapter,
   total_offline_tests: count('tests')+(adapter?.tests??0),
-  live_models: {status: 'NOT_EXECUTED', providers: ['jev','kev','laya'], reason: 'No real model or provider credentials available; run npm run test:live against each deployment.'},
+  live_models: {status: 'NOT_EXECUTED', providers: ['jev','kev','laya','decider','shisa'], reason: 'No real model or provider credentials available; run npm run test:live against each deployment.'},
   native_hosts: {status: 'NOT_EXECUTED', reason: 'Claude Code and Codex binaries/authenticated sessions are absent in the build environment; tests use explicit host CLI doubles.'},
   subagents: {status: 'NOT_USED', reason: 'No subagent runner was available; direct source review and regression tests were used.'},
-  all_executed_checks_green: runs.length === 5 && adapter?.all_green===true && runs.every(run => run.exit_code === 0) && count('tests') > 0 && count('tests') === count('pass') && count('fail') === 0 && count('cancelled') === 0 && count('skipped') === 0,
+  all_executed_checks_green: runs.length === 6 && adapter?.all_green===true && runs.every(run => run.exit_code === 0) && count('tests') > 0 && count('tests') === count('pass') && count('fail') === 0 && count('cancelled') === 0 && count('skipped') === 0,
 };
 await fs.writeFile(path.join(reports, 'validation.json'), JSON.stringify(summary, null, 2) + '\n');
 if (!summary.all_executed_checks_green) process.exitCode = 1;

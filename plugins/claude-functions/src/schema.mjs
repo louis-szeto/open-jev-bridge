@@ -68,7 +68,7 @@ export function validateRequest(request, maxQuestions = 512) {
 // A symbol cannot be forged by a JSON response or appear in JSON/MCP output.
 export const RESPONSE_RULES=Symbol('system-one-response-rules');
 const bad = reason => ({ok:false, reason, value:null});
-export function parseAnswer(q, answer, {rounded=true,decimals=2,requireConfidence=false} = {}) {
+export function parseAnswer(q, answer, {rounded=true,decimals=2,scoreDecimals=decimals,requireConfidence=false,confidenceIsMaxProbability=false} = {}) {
   if (!isRecord(answer) || answer.type !== q.type) return bad('missing or mismatched answer type');
   if (q.type === 'noul') return probability(answer.noul) ? {ok:true, value:answer} : bad('invalid noul probability');
   const keys = q.type === 'choice' ? Object.keys(q.criteria) : q.criteria.map((_,i)=>String(i));
@@ -82,6 +82,7 @@ export function parseAnswer(q, answer, {rounded=true,decimals=2,requireConfidenc
   const upper = keys.reduce((n,k)=>n+Math.min(1,p[k]+eps),0);
   if (lower > 1+1e-9 || upper < 1-1e-9) return bad('infeasible probability mass');
   if ((requireConfidence && answer.confidence == null) || (answer.confidence != null && !probability(answer.confidence))) return bad('invalid confidence');
+  if (confidenceIsMaxProbability && Math.abs(answer.confidence-Math.max(...Object.values(p)))>1e-9) return bad('confidence contradicts maximum probability');
   if (q.type === 'choice') {
     if (typeof answer.choice !== 'string' || !own(p, answer.choice)) return bad('choice not in criteria');
     if (p[answer.choice] < Math.max(...Object.values(p))-1e-9) return bad('choice is not a maximum');
@@ -96,7 +97,8 @@ export function parseAnswer(q, answer, {rounded=true,decimals=2,requireConfidenc
       for (const x of xs) { const d=Math.max(0,Math.min(mass,x.hi-x.lo)); mean+=x.i*d; mass-=d; }
       return mean;
     };
-    if (answer.score < bounds(false)-eps-1e-9 || answer.score > bounds(true)+eps+1e-9) return bad('score contradicts distribution');
+    const scoreEps=rounded ? 0.5*10**(-scoreDecimals)+1e-12 : 1e-9;
+    if (answer.score < bounds(false)-scoreEps-1e-9 || answer.score > bounds(true)+scoreEps+1e-9) return bad('score contradicts distribution');
   }
   return {ok:true, value:{...answer,confidence:answer.confidence ?? null}};
 }

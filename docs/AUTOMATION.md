@@ -107,3 +107,7 @@ The optional Claude function adapter is tested through its registered `turn.comp
 - Codex plugin structure: https://learn.chatgpt.com/docs/build-plugins
 
 These are moving interfaces. The source audit was direct; no independent subagent runner was available in the build environment.
+
+## New local model profiles
+
+`SYSTEM_ONE_PROVIDER=decider` and `SYSTEM_ONE_PROVIDER=shisa` work through the same automatic lifecycle hooks as existing providers. No special manual MCP invocation is needed after configuring the backend and loading the hooks. Shisa's per-question native readout is shared with the bundled Claude function plugin. For isolated function hooks, export URL/model/provider and any Shisa tuning into the Claude launch environment; the isolated runtime cannot read the Node configuration/key file. Stable compaction remains checkpoint-based. The generated-hook integration tests exercise each new provider with each host using explicit host CLI doubles, not authenticated vendor clients.

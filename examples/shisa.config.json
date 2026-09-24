@@ -1,0 +1,12 @@
+{
+  "url": "http://127.0.0.1:8012",
+  "model": "shisa-de-1",
+  "provider": "shisa",
+  "maxConcurrent": 2,
+  "timeoutMs": 20000,
+  "shisaTopLogprobs": 20,
+  "shisaMaxPromptTokens": 32768,
+  "shisaNoulTemperature": 1,
+  "shisaChoiceTemperature": 1,
+  "shisaScoreTemperature": 1
+}

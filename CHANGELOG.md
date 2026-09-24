@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 — additional local decision backends
+
+- Add the `decider` profile, native typed API/model-list handling and independent score/probability rounding validation.
+- Add a bounded eager CUDA HTTP wrapper for Mapika Decider 35B, disabling unsupported dense-model graph loading and rejecting truncated inputs.
+- Add the `shisa` vLLM transport: served-template/tokenizer checks, native option-letter logprobs, exact missing-letter fallback, typed normalization, logical deadlines and cancellation.
+- Share adapters with MCP tools, automatic hooks and the bundled Claude function-hook plugin. Preserve all existing provider integrations.
+- Add provider fixtures, all-tool/CLI/MCP/installed-hook/bundled-function e2e tests, Python wrapper tests and adapter-overhead benchmarks. No new Node dependencies.
+- Persist nonsecret Shisa configuration during direct installation; align CLI/MCP/plugin release versions. Preserve the bundled function plugin when tests regenerate it.
+- Keep the source archive free of reports, locks, checksums and caches; CI no longer requires a removed npm lockfile.
+
+
 ## 0.3.0 — host-driven automation
 
 - Inject proactive tool policy at startup, prompts, child starts and post-compaction recovery.
