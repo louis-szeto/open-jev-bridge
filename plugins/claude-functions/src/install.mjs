@@ -52,12 +52,8 @@ export async function install({host='both',root=REPO_ROOT,overrides={},env=proce
     const loc=locations(target,p),original=await snapshot(loc.hooks),json=original===null?{}:JSON.parse(original),entries=hookEntries(target,root),skillOriginal={};
     invariant(isRecord(json)&&(!json.hooks||isRecord(json.hooks)),'Invalid host hook configuration');
     for(const event of Object.keys(entries))invariant(!json.hooks?.[event]||Array.isArray(json.hooks[event]),'Invalid host hook event array');
-    for(const name of skillNames){
-      const filename=path.join(loc.skills,name,'SKILL.md'),text=await snapshot(filename),source=await fs.readFile(path.join(root,'skills',name,'SKILL.md'),'utf8');
-      if(text!==null)invariant([current.skillHashes?.[name],legacyHashes[name],hashText(source)].includes(hashText(text)),`Installed skill ${name} has user edits; preserve or merge it before upgrading`);
-      skillOriginal[name]=text;
-    }
-    plans.push({target,current,loc,original,json,entries,skillOriginal});continue;
+    for(const name of skillNames)skillOriginal[name]=await snapshot(path.join(loc.skills,name,'SKILL.md'));
+    plans.push({target,current,loc,original,json,entries,skillOriginal,existingSkills:skillNames});continue;
    }
    await run(target,['--version'],env);
    // Existing unowned MCP registration is never removed or silently overwritten.
@@ -66,10 +62,18 @@ export async function install({host='both',root=REPO_ROOT,overrides={},env=proce
    const loc=locations(target,p),original=await snapshot(loc.hooks),json=original===null?{}:JSON.parse(original);invariant(isRecord(json)&&(!json.hooks||isRecord(json.hooks)),'Invalid host hook configuration');
    const entries=hookEntries(target,root);
    for(const event of Object.keys(entries))invariant(!json.hooks?.[event]||Array.isArray(json.hooks[event]),'Invalid host hook event array');
-   for(const name of skillNames){try{await fs.lstat(path.join(loc.skills,name));throw new BridgeError('conflict',`Skill ${name} already exists; refusing to overwrite`);}catch(e){if(e.code!=='ENOENT')throw e;}}
-   plans.push({target,loc,original,json,entries});
+   // Skill names in our namespace are replace-on-install by default.  This intentionally
+   // makes stale/orphaned installs self-healing even when their receipt was removed.
+   // Unrelated skills and host settings are never touched.
+   const existingSkills=[];
+   for(const name of skillNames){
+    try{await fs.lstat(path.join(loc.skills,name));existingSkills.push(name);}catch(e){if(e.code!=='ENOENT')throw e;}
+   }
+   plans.push({target,loc,original,json,entries,existingSkills});
   }
   const configOriginal=await snapshot(p.config),completed=[];let configWritten=false;
+  await privateDirectory(config.dataDir);
+  const backupRoot=await fs.mkdtemp(path.join(config.dataDir,'.install-backup-'));
   try{
    // Never persist a bearer token inherited from the environment.
    const prior=configOriginal===null?{}:JSON.parse(configOriginal),safeOverrides={...overrides};delete safeOverrides.apiKey;
@@ -81,32 +85,38 @@ export async function install({host='both',root=REPO_ROOT,overrides={},env=proce
    await atomicJSON(p.config,{...prior,...connection,...safeOverrides});configWritten=true;
    for(const plan of plans){
     const {target,loc,json,entries}=plan;
-    const undo={...plan,mcp:false,hooks:false,skills:[],skillRestores:{}};completed.push(undo);
+    const undo={...plan,mcp:false,hooks:false,skills:[],skillBackups:{}};completed.push(undo);
     const args=target==='claude'?['mcp','add','--scope','user','open-jev-bridge','--',process.execPath,path.join(root,'bin','open-jev-bridge.mjs'),'serve']:['mcp','add','open-jev-bridge','--',process.execPath,path.join(root,'bin','open-jev-bridge.mjs'),'serve'];
     if(!plan.current){await run(target,args,env);undo.mcp=true;}
     const next=stripOwned(json,plan.current?.entries);for(const [event,entry]of Object.entries(entries))next.hooks[event]=[...(next.hooks[event]??[]),entry];
     await atomicJSON(loc.hooks,next);undo.hooks=true;
     for(const name of skillNames){
      await privateDirectory(loc.skills);
-     if(plan.current){
-      undo.skillRestores[name]=plan.skillOriginal[name];await privateDirectory(path.join(loc.skills,name));
-      await fs.copyFile(path.join(root,'skills',name,'SKILL.md'),path.join(loc.skills,name,'SKILL.md'));
-     }else{await fs.cp(path.join(root,'skills',name),path.join(loc.skills,name),{recursive:true,errorOnExist:true,force:false});undo.skills.push(name);}
+     const destination=path.join(loc.skills,name);
+     try{
+      await fs.lstat(destination);
+      const backup=path.join(backupRoot,`${target}-${name}`);
+      await fs.cp(destination,backup,{recursive:true});undo.skillBackups[name]=backup;
+      await fs.rm(destination,{recursive:true,force:true});
+     }catch(e){if(e.code!=='ENOENT')throw e;}
+     await fs.cp(path.join(root,'skills',name),destination,{recursive:true});undo.skills.push(name);
     }
-    receipt.hosts[target]={root,version:'0.4.2',hookFile:loc.hooks,entries,skills:skillNames.map(n=>path.join(loc.skills,n)),skillHashes:Object.fromEntries(await Promise.all(skillNames.map(async n=>[n,hashText(await fs.readFile(path.join(root,'skills',n,'SKILL.md'),'utf8'))]))),installedAt:new Date().toISOString()};
+    receipt.hosts[target]={root,version:'0.4.4',hookFile:loc.hooks,entries,skills:skillNames.map(n=>path.join(loc.skills,n)),skillHashes:Object.fromEntries(await Promise.all(skillNames.map(async n=>[n,hashText(await fs.readFile(path.join(root,'skills',n,'SKILL.md'),'utf8'))]))),installedAt:new Date().toISOString()};
    }
    await atomicJSON(receiptFile,receipt);
   }catch(e){
    let rollbackFailed=false;
    for(const undo of completed.reverse()){
-    for(const [name,text] of Object.entries(undo.skillRestores))await restore(path.join(undo.loc.skills,name,'SKILL.md'),text).catch(()=>{rollbackFailed=true;});
     for(const name of undo.skills)await fs.rm(path.join(undo.loc.skills,name),{recursive:true,force:true}).catch(()=>{rollbackFailed=true;});
+    for(const [name,backup] of Object.entries(undo.skillBackups))await fs.cp(backup,path.join(undo.loc.skills,name),{recursive:true}).catch(()=>{rollbackFailed=true;});
     if(undo.hooks)await restore(undo.loc.hooks,undo.original).catch(()=>{rollbackFailed=true;});
     if(undo.mcp)await run(undo.target,undo.target==='claude'?['mcp','remove','--scope','user','open-jev-bridge']:['mcp','remove','open-jev-bridge'],env).catch(()=>{rollbackFailed=true;});
    }
    if(configWritten)await restore(p.config,configOriginal).catch(()=>{rollbackFailed=true;});
+   await fs.rm(backupRoot,{recursive:true,force:true}).catch(()=>{});
    if(rollbackFailed)throw new BridgeError('rollback_incomplete','Installation failed and rollback was incomplete; inspect host MCP registrations before retrying');throw e;
   }
+  await fs.rm(backupRoot,{recursive:true,force:true}).catch(()=>{});
   return {installed:targets,mode:'direct-user-hooks-and-mcp',config:p.config,root,already_installed:plans.filter(p=>p.current).map(p=>p.target),automation:{completion:config.autoVerify,patch_review:config.autoReview,external_screening:config.autoScreen,compaction:config.autoCompaction},hooks_refreshed:targets,next:'Restart the hosts. In Codex run /hooks and review/trust these hooks; installation does not bypass trust. Do not additionally enable the native plugin for the same host.'};
  });
 }

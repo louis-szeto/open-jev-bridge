@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4 — replace bridge-owned skills by default
+
+- Direct installation now replaces the three Open Jev Bridge-owned skill directories on every install/upgrade, including stale, edited, malformed, or orphaned copies.
+- Existing bridge skill directories are snapshotted transactionally and restored if installation rolls back.
+- Unrelated skills, hooks, and host settings remain untouched.
+
 ## 0.4.2 — Shisa/llama.cpp raw-scaffold fix
 
 - Remove the unnecessary `/apply-template` equality guard from the llama.cpp adapter. Render the published Shisa scaffold and send its token IDs directly to native `/completion`; leave vLLM behavior unchanged.

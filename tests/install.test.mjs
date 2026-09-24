@@ -8,7 +8,7 @@ test('Install both hosts with exact CLI arguments and preserve other hooks/setti
 test('Repeated installation is idempotent and does not duplicate MCP or hooks',async t=>{const {home,env}=await setup(t),host=fakeHost();await install({env,run:host.run});const r=await install({env,run:host.run});assert.equal(r.already_installed.length,2);assert.equal(host.calls.filter(c=>c.args[1]==='add').length,2);assert.equal(JSON.parse(await fs.readFile(path.join(home,'.codex','hooks.json'))).hooks.Stop.length,1);});
 test('Host setup failure rolls back preceding host and restores original bytes',async t=>{const {home,env}=await setup(t),host=fakeHost({failTarget:'codex'});await fs.mkdir(path.join(home,'.claude'));const original='{ "theme": "dark" }\n';await fs.writeFile(path.join(home,'.claude','settings.json'),original);await assert.rejects(install({env,run:host.run}),/failure/);assert.equal(await fs.readFile(path.join(home,'.claude','settings.json'),'utf8'),original);assert.equal(host.registered.size,0);await assert.rejects(fs.stat(path.join(home,'.claude','skills','system-one-belay')),e=>e.code==='ENOENT');});
 test('Unowned MCP registration never overwritten',async t=>{const {env}=await setup(t),host=fakeHost({existing:['claude']});await assert.rejects(install({env,run:host.run}),/unowned/);assert.equal(host.calls.filter(c=>c.args[1]==='add').length,0);});
-test('Existing skill or malformed settings fails before side effects',async t=>{const {home,env}=await setup(t),host=fakeHost();await fs.mkdir(path.join(home,'.claude','skills','system-one-belay'),{recursive:true});await assert.rejects(install({env,run:host.run,host:'claude'}),/Skill/);assert.equal(host.calls.filter(c=>c.args[1]==='add').length,0);});
+test('Existing bridge skill is overwritten by default on first install',async t=>{const {home,env}=await setup(t),host=fakeHost(),dir=path.join(home,'.claude','skills','system-one-belay');await fs.mkdir(dir,{recursive:true});await fs.writeFile(path.join(dir,'SKILL.md'),'stale custom content');await fs.writeFile(path.join(dir,'notes.md'),'old extra file');const r=await install({env,run:host.run,host:'claude'});assert.deepEqual(r.installed,['claude']);assert.match(await fs.readFile(path.join(dir,'SKILL.md'),'utf8'),/system-one-belay/);await assert.rejects(fs.stat(path.join(dir,'notes.md')),e=>e.code==='ENOENT');});
 test('Uninstall removes only exact owned hooks and preserves shared data/config',async t=>{const {home,env}=await setup(t),host=fakeHost();await install({env,run:host.run});const file=path.join(home,'.codex','hooks.json'),cfg=JSON.parse(await fs.readFile(file));cfg.hooks.Stop[0].hooks.push({type:'command',command:'other-command'});await fs.writeFile(file,JSON.stringify(cfg));const r=await uninstall({env,run:host.run});assert.deepEqual(r.removed,['claude','codex']);assert.equal(JSON.parse(await fs.readFile(file)).hooks.Stop[0].hooks[0].command,'other-command');assert.equal(host.registered.size,0);assert.ok(await fs.stat(path.join(home,'.config','open-jev-bridge','config.json')));});
 test('Installer does not persist inherited API credentials',async t=>{const {home,env}=await setup(t),host=fakeHost();env.SYSTEM_ONE_API_KEY='SUPERSECRET';await install({env,run:host.run,host:'claude'});assert.ok(!(await fs.readFile(path.join(home,'.config','open-jev-bridge','config.json'),'utf8')).includes('SUPERSECRET'));});
 test('Shell quoting handles spaces, quotes, dollars and semicolons literally',()=>assert.equal(quoteShell("a b'c;$HOME"),"'a b'\\''c;$HOME'"));
@@ -22,4 +22,27 @@ test('Generic provider and private API-key-file path persist, but secret content
  const saved=JSON.parse(await fs.readFile(r.config,'utf8'));assert.equal(saved.apiKeyFile,keyfile);assert.equal(saved.provider,'jev');assert.equal(saved.apiKey,undefined);
  assert.ok(!JSON.stringify(host.calls).includes('private-fixture-token'));assert.ok(host.calls.some(x=>x.args.includes('open-jev-bridge')));
  const {resolveConfig}=await import('../src/config.mjs');assert.equal(resolveConfig({},env).apiKey,'private-fixture-token');
+});
+
+test('First install safely adopts orphaned bridge skills with exact current content',async t=>{
+ const {home,env}=await setup(t),host=fakeHost();
+ for(const name of ['system-one-judgments','system-one-compaction','system-one-belay']){
+  const dir=path.join(home,'.claude','skills',name);await fs.mkdir(dir,{recursive:true});
+  await fs.copyFile(path.join(ROOT,'skills',name,'SKILL.md'),path.join(dir,'SKILL.md'));
+ }
+ const r=await install({env,run:host.run,host:'claude',root:ROOT});
+ assert.deepEqual(r.installed,['claude']);assert.equal(host.calls.filter(c=>c.args[1]==='add').length,1);
+});
+
+test('First install overwrites orphaned bridge skill even with edits or additional files',async t=>{
+ const {home,env}=await setup(t),host=fakeHost(),dir=path.join(home,'.claude','skills','system-one-belay');await fs.mkdir(dir,{recursive:true});
+ await fs.writeFile(path.join(dir,'SKILL.md'),'user-modified stale bridge skill');await fs.writeFile(path.join(dir,'notes.md'),'old file');
+ await install({env,run:host.run,host:'claude',root:ROOT});assert.match(await fs.readFile(path.join(dir,'SKILL.md'),'utf8'),/system-one-belay/);await assert.rejects(fs.stat(path.join(dir,'notes.md')),e=>e.code==='ENOENT');
+});
+
+test('Failed second-host install restores bridge skill directories overwritten earlier in the transaction',async t=>{
+ const {home,env}=await setup(t),host=fakeHost({failTarget:'codex'}),dir=path.join(home,'.claude','skills','system-one-belay');
+ await fs.mkdir(dir,{recursive:true});await fs.writeFile(path.join(dir,'SKILL.md'),'preexisting custom skill');await fs.writeFile(path.join(dir,'notes.md'),'restore me');
+ await assert.rejects(install({env,run:host.run,host:'both'}),/test failure/);
+ assert.equal(await fs.readFile(path.join(dir,'SKILL.md'),'utf8'),'preexisting custom skill');assert.equal(await fs.readFile(path.join(dir,'notes.md'),'utf8'),'restore me');
 });

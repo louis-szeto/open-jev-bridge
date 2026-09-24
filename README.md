@@ -14,12 +14,19 @@ Inspired by [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compact
 
 The backend may be local, on another machine, or hosted behind an authenticated HTTPS endpoint. A compatible API still needs to respect the requested question semantics and return valid probability distributions; `doctor` checks the transport/shape but does not certify model quality.
 
-## Shisa GGUF on llama.cpp
+## Shisa GGUF on llama.cpp (template fix in 0.4.2)
 
 The v0.4.0 Shisa adapter expected vLLM. For a locally running **llama-server**,
 select its native protocol explicitly; changing the URL alone is insufficient.
 The `tokens: []` / `shisa: missing tokenizer tokens` failure is covered by a
 regression test.
+
+**0.4.2 fixes `served GGUF chat template differs from the documented Shisa scaffold`.**
+The native adapter now renders Shisa's published scaffold itself and sends its
+validated token IDs to `/completion`. It does not call `/apply-template`, adopt
+an alternate GGUF chat format, or require changing `--jinja`. Keep the existing
+server running; update the bridge and restart its host/MCP processes. No new
+configuration variable or validation-bypass flag is needed.
 
 ```bash
 export SYSTEM_ONE_PROVIDER=shisa
@@ -32,6 +39,8 @@ node bin/open-jev-bridge.mjs doctor
 # Direct installations only; use the same checkout path as before:
 node bin/open-jev-bridge.mjs install --host both
 ```
+
+Installation is **replace-on-install for Open Jev Bridge-owned skill names** (`system-one-judgments`, `system-one-compaction`, and `system-one-belay`). Stale, orphaned, or edited copies at those exact skill paths are overwritten by default so reinstalling is self-healing. Other skills, hooks, and unrelated host settings are left untouched. Existing skill directories are snapshotted during installation and restored if the install rolls back.
 
 Keep your current GGUF server/GPU configuration; no additional model server is
 needed. Restart client/MCP processes after updating. Native Claude function-plugin
@@ -504,6 +513,19 @@ docs/                        API, source review, testing and native acceptance
 ```
 
 `plugins/claude-functions/` is checked in and ready to install. `npm run build` deterministically regenerates that self-contained variant from the root implementation when the root runtime changes. The clean release still excludes lockfiles, validation reports, checksums, caches, and unrelated generated build artifacts. `npm run check` validates the source tree. Do not edit files under `plugins/claude-functions/` independently; regenerate them from the root sources.
+
+## Migration from the previous Kev-named release
+
+This is an intentional namespace change, not a hidden alias layer. The previous `KEV_*` bridge environment variables are no longer read. Use `SYSTEM_ONE_*`; `KEV_BRIDGE_CONFIG` becomes `OPEN_JEV_BRIDGE_CONFIG`, and `KEV_BRIDGE_DATA` becomes `OPEN_JEV_BRIDGE_DATA`. MCP tools become `system_one_*`, with `kev_system_one` becoming `system_one_query`. The CLI is `bin/open-jev-bridge.mjs` and the MCP registration is `open-jev-bridge`.
+
+Uninstall the old **direct** integration with its old checkout **before** installing this release, so two Stop hooks do not run:
+
+```bash
+node /absolute/path/to/kev-bridge/bin/kev-bridge.mjs uninstall --host both
+# Then use this release's backend-specific install command.
+```
+
+For old native plugins, disable/remove them through the host's plugin manager. Configuration and private checkpoints are not automatically migrated or deleted. Copy nonsecret JSON values to `~/.config/open-jev-bridge/config.json` deliberately; retarget a key file rather than copying a key into source control. Only optional `jev_*` tool aliases remain, because they explicitly support the upstream tool names; they do not choose Jev or change any credentials.
 
 ## Uninstall and troubleshooting
 

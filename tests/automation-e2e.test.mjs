@@ -90,11 +90,10 @@ test('Reinstall refreshes old owned hooks and skills without adding duplicate MC
  const status=await command([BIN,'automation-status','--host','codex'],{env:x.env});assert.equal(status.code,0);
 });
 
-test('Upgrade refuses to overwrite user-edited installed skills',async t=>{
- const x=await installed(t,'claude'),skill=path.join(x.home,'.claude/skills/system-one-judgments/SKILL.md'),before=await fs.readFile(path.join(x.home,'.claude/settings.json'),'utf8');
- await fs.appendFile(skill,'\nUser-authored content.\n');const result=await command([BIN,'install','--host','claude'],{env:x.env});
- assert.equal(result.code,1);assert.match(result.stderr,/user edits/);assert.equal(await fs.readFile(path.join(x.home,'.claude/settings.json'),'utf8'),before);
- assert.match(await fs.readFile(skill,'utf8'),/User-authored content/);
+test('Upgrade overwrites edited bridge-owned skills by default',async t=>{
+ const x=await installed(t,'claude'),dir=path.join(x.home,'.claude/skills/system-one-judgments'),skill=path.join(dir,'SKILL.md');
+ await fs.appendFile(skill,'\nUser-authored stale content.\n');await fs.writeFile(path.join(dir,'extra.md'),'stale');const result=await command([BIN,'install','--host','claude'],{env:x.env});
+ assert.equal(result.code,0,result.stderr);assert.doesNotMatch(await fs.readFile(skill,'utf8'),/User-authored stale content/);await assert.rejects(fs.stat(path.join(dir,'extra.md')),e=>e.code==='ENOENT');
 });
 
 test('Environment-selected nonsecret endpoint persists for filtered host environments',async t=>{

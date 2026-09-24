@@ -20,7 +20,7 @@ export async function serveMcp(service,{input=process.stdin,output=process.stdou
   if(method==='initialize'){
    if(initialized){await send(rpcError(id,-32600,'Already initialized'));return;}
    if(typeof params.protocolVersion!=='string'||!isRecord(params.capabilities)||!isRecord(params.clientInfo)){await send(rpcError(id,-32602,'Invalid initialization parameters'));return;}
-   initialized=true;await send({jsonrpc:'2.0',id,result:{protocolVersion:MCP_VERSIONS.includes(params.protocolVersion)?params.protocolVersion:MCP_VERSIONS[0],capabilities:{tools:{listChanged:false}},serverInfo:{name:'open-jev-bridge',version:'0.4.2'},instructions:'Provider-backed probabilistic judgments, not proof. Tools never execute commands. Use actual tests to establish completion.'}});return;
+   initialized=true;await send({jsonrpc:'2.0',id,result:{protocolVersion:MCP_VERSIONS.includes(params.protocolVersion)?params.protocolVersion:MCP_VERSIONS[0],capabilities:{tools:{listChanged:false}},serverInfo:{name:'open-jev-bridge',version:'0.4.4'},instructions:'Provider-backed probabilistic judgments, not proof. Tools never execute commands. Use actual tests to establish completion.'}});return;
   }
   if(method==='ping'){await send({jsonrpc:'2.0',id,result:{}});return;}
   if(!ready){await send(rpcError(id,-32002,'MCP initialization is not complete'));return;}

@@ -1,6 +1,6 @@
 {
   "name": "open-jev-bridge",
-  "version": "0.4.2",
+  "version": "0.4.4",
   "description": "Provider-neutral System One MCP tools and automatic Claude Code/Codex hooks, supporting Jev, Kev, Laya, Mapika Decider and Shisa DE-1",
   "type": "module",
   "license": "MIT",
