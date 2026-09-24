@@ -1,6 +1,6 @@
 {
   "name": "open-jev-bridge",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "System One MCP judgments, Stop verification and compaction checkpoint hooks.",
   "hooks": "./hooks/codex.json",
   "mcpServers": "./codex.mcp.json"

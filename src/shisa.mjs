@@ -11,7 +11,8 @@ const failure = (ok,message) => invariant(ok,`shisa: ${message}`,'invalid_respon
 const same = (a,b) => a.length===b.length&&a.every((v,i)=>v===b[i]);
 
 /** The text-only, one-system/one-user subset of the checkpoint's published chat template.
- * Its output is checked against the SERVED tokenizer's actual chat template on every question.
+ * vLLM checks it against the served chat template. llama.cpp sends this exact scaffold
+ * as native token IDs, validating control markers without using /apply-template.
  * JSON escaping of < and > prevents evidence from spelling control tokens, without changing
  * the decoded JSON values. Question ids remain outside the prompt, as in System One.
  */

@@ -14,7 +14,7 @@ Inspired by [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compact
 
 The backend may be local, on another machine, or hosted behind an authenticated HTTPS endpoint. A compatible API still needs to respect the requested question semantics and return valid probability distributions; `doctor` checks the transport/shape but does not certify model quality.
 
-## Shisa GGUF on llama.cpp (new in 0.4.1)
+## Shisa GGUF on llama.cpp
 
 The v0.4.0 Shisa adapter expected vLLM. For a locally running **llama-server**,
 select its native protocol explicitly; changing the URL alone is insufficient.
@@ -40,18 +40,22 @@ export the same settings in the launching shell. The ready-to-use function bundl
 includes the new adapter. Existing vLLM setups keep `SYSTEM_ONE_SHISA_BACKEND=vllm`
 (the default).
 
-The native path uses `/props`, `/apply-template`, `/tokenize` with **`content`**,
-and `/completion` with native probability output. It validates the template,
-option token boundaries and the **per-slot** context limit; it does not bypass
-checks or read generated answer text. Missing-letter recovery is implemented
-without pretending llama.cpp supports vLLM's prompt-logprob API.
+The native path uses `/props`, `/tokenize` with **`content`**, and `/completion`
+with numeric prompt IDs and native probability output. Before inference it
+checks that the five Shisa/Gemma control markers each have distinct single-token
+encodings, occur in the expected order in the prompt, and delimit the exact answer
+boundary. It also validates option-token prefix stability and the **per-slot**
+context limit. It never reads sampled answer text. Missing-letter recovery is
+implemented without pretending llama.cpp supports vLLM's prompt-logprob API.
+`doctor` reports `prompt_source: "documented-shisa-scaffold"` and
+`control_tokens_validated: true` after a successful native probe.
 
 See **[LLAMACPP.md](docs/LLAMACPP.md)** for wire formats, the recovery derivation,
 upgrade steps, serving example, targeted tests and live-validation boundaries.
 
 ## Automatic operation in Claude Code and Codex
 
-**Lifecycle automation remains enabled by default in 0.4.1.** After installation and native hook trust, routine completion checks, patch/completion review, matched external-content screening and compaction checkpoints run without the user requesting MCP calls. The agent also receives proactive tool-use instructions at session start, each prompt and after compaction.
+**Lifecycle automation remains enabled by default in 0.4.2.** After installation and native hook trust, routine completion checks, patch/completion review, matched external-content screening and compaction checkpoints run without the user requesting MCP calls. The agent also receives proactive tool-use instructions at session start, each prompt and after compaction.
 
 | Workflow | Automatic trigger | What happens |
 |---|---|---|
@@ -415,7 +419,7 @@ Protect remote deployments with TLS/access controls and a trusted proxy. Do not 
 ## Test results and benchmark
 
 <!-- VALIDATION:START -->
-**673/673 Node tests and 67/67 Python adapter tests passed (740 total); zero failures or skips.** Syntax/schema/plugin checks, the coverage run and the benchmark completed with zero exit codes: **PASS**. Recorded 2026-09-24T08:26:07.523Z, v22.16.0, linux/x64. Raw evidence is generated under `reports/` by `npm run validate`; reports are deliberately excluded from the clean source ZIP. **Live Jev/Kev/Laya/Decider/Shisa inference: NOT EXECUTED. Real native-host sessions: NOT EXECUTED.**
+**696/696 Node tests and 67/67 Python adapter tests passed (763 total); zero failures or skips.** Syntax/schema/plugin checks, the coverage run and the benchmark completed with zero exit codes: **PASS**. Recorded 2026-09-24T08:50:35.911Z, v22.16.0, linux/x64. Raw evidence is generated under `reports/` by `npm run validate`; reports are deliberately excluded from the clean source ZIP. **Live Jev/Kev/Laya/Decider/Shisa inference: NOT EXECUTED. Real native-host sessions: NOT EXECUTED.**
 <!-- VALIDATION:END -->
 
 The fixture API is a deterministic local HTTP server used to establish request/response wiring. It is **not neural model inference**, and these green tests do **not** prove the model's semantic accuracy. The native host CLIs are explicit doubles in installer/e2e tests. Real model and authenticated native-host acceptance remain separate, clearly labeled gates rather than skipped cases counted as passes.
@@ -423,13 +427,13 @@ The fixture API is a deterministic local HTTP server used to establish request/r
 <!-- BENCHMARK:START -->
 | Measured operation | Samples | p50 | p95 | Throughput |
 |---|---:|---:|---:|---:|
-| direct_http_system_one | 100 | 0.765 ms | 1.918 ms | 1114.9/s |
-| stdio_mcp_to_http | 100 | 1.003 ms | 1.566 ms | 947.2/s |
-| compaction_pure_fixture | 100 | 0.277 ms | 0.345 ms | 3331.7/s |
-| verified_belay_fast_path_no_model | 1000 | 0.005 ms | 0.009 ms | 140213.7/s |
-| validate_255_rounded_options | 1000 | 0.016 ms | 0.023 ms | 53872.1/s |
-| stop_hook_process_verified_no_model | 10 | 58.258 ms | 66.909 ms | 16.6/s |
-| stop_hook_process_automatic_task_review | 10 | 97.699 ms | 107.392 ms | 10.2/s |
+| direct_http_system_one | 100 | 0.755 ms | 1.404 ms | 1163.3/s |
+| stdio_mcp_to_http | 100 | 0.983 ms | 1.599 ms | 943.9/s |
+| compaction_pure_fixture | 100 | 0.280 ms | 0.462 ms | 3017.5/s |
+| verified_belay_fast_path_no_model | 1000 | 0.005 ms | 0.007 ms | 168373.2/s |
+| validate_255_rounded_options | 1000 | 0.016 ms | 0.024 ms | 54153.9/s |
+| stop_hook_process_verified_no_model | 10 | 55.460 ms | 57.970 ms | 17.9/s |
+| stop_hook_process_automatic_task_review | 10 | 88.928 ms | 95.641 ms | 11.1/s |
 
 Environment: v22.16.0, linux/x64, AMD EPYC 9V74 80-Core Processor, 5 logical CPUs. Fixture compaction reduced serialized canonical characters by **96.63%** (17,899 → 603); this deliberately synthetic result is not a real-model retention benchmark.
 <!-- BENCHMARK:END -->
@@ -528,10 +532,10 @@ The Decider tests run the **actual Python HTTP wrapper** with a clearly named fa
 
 | Provider/transport | p50 | p95 | HTTP calls per logical request |
 |---|---:|---:|---:|
-| decider/http | 0.926 ms | 2.815 ms | 1 |
-| decider/mcp | 1.471 ms | 2.922 ms | 1 |
-| shisa/http | 17.124 ms | 20.623 ms | 22 |
-| shisa/mcp | 15.298 ms | 20.441 ms | 22 |
+| decider/http | 1.087 ms | 2.262 ms | 1 |
+| decider/mcp | 1.217 ms | 2.159 ms | 1 |
+| shisa/http | 17.101 ms | 19.284 ms | 22 |
+| shisa/mcp | 14.083 ms | 17.020 ms | 22 |
 
 Environment: v22.16.0, linux, AMD EPYC 9V74 80-Core Processor. Reproduce with `npm run benchmark:providers`; raw samples are generated under `reports/provider-benchmark.json`. This compares adapter work on fixtures, not model inference speed or decision quality.
 <!-- PROVIDER_BENCHMARK:END -->

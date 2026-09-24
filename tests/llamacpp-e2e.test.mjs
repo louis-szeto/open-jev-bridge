@@ -8,7 +8,7 @@ import {ROOT,BIN,command,temp,history,mcpProcess,TOOL_INPUTS} from './helpers.mj
 import {buildPlugins} from '../scripts/build-plugins.mjs';
 async function fixture(t,options){const s=await llamaHttp(options);t.after(async()=>{await s.close();assert.deepEqual(s.errors,[]);});return s;}
 for(const host of ['claude','codex'])test(`${host}/llamacpp: install persists backend and automatically checks edits, tests and compaction`,async t=>{
- const s=await fixture(t),home=await temp();t.after(()=>fs.rm(home,{recursive:true,force:true}));
+ const s=await fixture(t,{mutate:(r)=>r.url.endsWith('/apply-template')?{httpStatus:404}:undefined}),home=await temp();t.after(()=>fs.rm(home,{recursive:true,force:true}));
  const fakebin=path.join(home,"host's bin");await fs.mkdir(fakebin);
  for(const h of ['claude','codex']){await fs.copyFile(path.join(ROOT,'tests/fixtures/fake-host.mjs'),path.join(fakebin,h));await fs.chmod(path.join(fakebin,h),0o755);}
  const env={HOME:home,XDG_CONFIG_HOME:path.join(home,'.config'),XDG_STATE_HOME:path.join(home,'.state'),PATH:fakebin+path.delimiter+process.env.PATH,
@@ -31,7 +31,7 @@ for(const host of ['claude','codex'])test(`${host}/llamacpp: install persists ba
  const transcript=path.join(home,'history.jsonl'),original=history(8,1000).map(JSON.stringify).join('\n');await fs.writeFile(transcript,original);
  r=await fire('PreCompact',{transcript_path:transcript,trigger:'auto'});assert.equal(r.code,0,r.stderr);assert.equal(await fs.readFile(transcript,'utf8'),original);
  r=await fire('SessionStart',{source:'compact'});assert.match(r.stdout,/No history was replaced/);
- assert.ok(s.requests.some(r=>r.url==='/completion'));assert.ok(s.requests.every(r=>r.url!=='/v1/completions'));
+ assert.ok(s.requests.some(r=>r.url==='/completion'));assert.ok(s.requests.every(r=>r.url!=='/v1/completions'&&r.url!=='/apply-template'));
  r=await command([BIN,'uninstall','--host',host],{env});assert.equal(r.code,0,r.stderr);
 });
 test('Ready-to-use Claude function bundle selects llama.cpp from environment and replaces history',async t=>{
@@ -39,12 +39,12 @@ test('Ready-to-use Claude function bundle selects llama.cpp from environment and
  for(const f of ['client.mjs','config.mjs','install.mjs','endpoints.mjs','shisa.mjs','shisa-llamacpp.mjs','function-hook.mjs'])
   assert.equal(await fs.readFile(path.join(bundle,'src',f),'utf8'),await fs.readFile(path.join(ROOT,'src',f),'utf8'));
  const {register}=await import(pathToFileURL(path.join(bundle,'src/function-hook.mjs')));
- const s=await fixture(t),callbacks={},messages=history();let result,replacements=0;
+ const s=await fixture(t,{mutate:(r,o)=>{if(r.url==='/apply-template')o.prompt='wrong Gemma template';}}),callbacks={},messages=history();let result,replacements=0;
  const env={SYSTEM_ONE_PROVIDER:'shisa',SYSTEM_ONE_MODEL:'shisa-de-1',SYSTEM_ONE_URL:s.url,SYSTEM_ONE_SHISA_BACKEND:'llamacpp'};
  register((e,fn)=>callbacks[e]=fn,{preserveRecentMessages:2});
  const $={env:{get:async k=>env[k]},ui:{log(){}},http:{fetch:async(u,i)=>{const r=await fetch(u,i);return {ok:r.ok,status:r.status,text:await r.text()};}},
   session:{usage:async()=>({context:{percent:70}}),compact:async()=>{replacements++;result=await callbacks['session.compact']($,{messages},()=>({messages}));}}};
- await callbacks['turn.complete']($,{},()=>{});assert.equal(replacements,1);assert.ok(JSON.stringify(result.messages).length<JSON.stringify(messages).length);assert.equal(result.messages[0].text,messages[0].text);
+ await callbacks['turn.complete']($,{},()=>{});assert.equal(replacements,1);assert.ok(JSON.stringify(result.messages).length<JSON.stringify(messages).length);assert.equal(result.messages[0].text,messages[0].text);assert.ok(s.requests.every(r=>r.url!=='/apply-template'));
 });
 test('MCP cancellation does not hang the process during native tokenizer work',async t=>{
  const s=await fixture(t,{delay:30}),m=await mcpProcess(s.url,{env:{SYSTEM_ONE_PROVIDER:'shisa',SYSTEM_ONE_SHISA_BACKEND:'llamacpp'}});t.after(()=>m.close());

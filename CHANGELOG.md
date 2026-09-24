@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.2 — Shisa/llama.cpp raw-scaffold fix
+
+- Remove the unnecessary `/apply-template` equality guard from the llama.cpp adapter. Render the published Shisa scaffold and send its token IDs directly to native `/completion`; leave vLLM behavior unchanged.
+- Discover and validate single-token scaffold controls, exact control order and answer boundary. Preserve letter prefix-stability, context, truncation and probability validation; no bypass flag is added.
+- Report the prompt source and control validation in `doctor`. No new configuration or server restart is required for this fix; restart bridge/MCP/host processes and refresh native plugin caches.
+- Add 23 regression tests and extend automatic-hook/function-plugin e2e fixtures to differing or missing server chat renderers.
+- Ship the updated ready-to-use function bundle and keep the archive free of locks, reports, caches and model files.
+
 ## 0.4.1
 
 - Add explicit `SYSTEM_ONE_SHISA_BACKEND=llamacpp` / `--shisa-backend` for local GGUF Shisa. Preserve vLLM as default.

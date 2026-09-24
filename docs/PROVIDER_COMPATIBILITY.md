@@ -68,3 +68,11 @@ The shared tools, ordinary automatic hooks and bundled Claude function hook use 
 `SYSTEM_ONE_SHISA_BACKEND=llamacpp` selects native GGUF-server routes. The provider
 remains `shisa`, with unchanged fourteen-tool semantics. See [LLAMACPP.md](LLAMACPP.md)
 for endpoint/response differences, numeric recovery and validation boundaries.
+
+### Raw Shisa scaffold on llama.cpp (0.4.2)
+
+The bridge no longer requires the general-purpose `/apply-template` output to
+match Shisa. It renders the published scaffold, verifies special control token
+IDs/order and the answer boundary, and supplies integer IDs to native completion.
+A different or disabled server chat template cannot change the prompt sent to
+inference. See [LLAMACPP.md](LLAMACPP.md) for the validation and regression tests.

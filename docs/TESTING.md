@@ -44,7 +44,7 @@ npm run benchmark        # bridge/fixture measurements, not inference
 npm run validate         # check + all tests + coverage + benchmark, with saved logs and summary
 ```
 
-No npm runtime/test dependencies are needed. The lockfile allows `npm ci --ignore-scripts`; it does not fetch a dependency tree. A Linux/macOS Node 22/24 CI matrix is provided; only the specific local build environment recorded in the report was exercised during artifact creation. Coverage reports are observational, not a claim of 100% path coverage or an external audit. Benchmark thresholds are not brittle millisecond pass/fail gates; timeout/queue/worker tests enforce broad safety bounds.
+No npm runtime/test dependencies or install step are needed. The clean source archive intentionally contains no npm lockfile. A Linux/macOS Node 22/24 CI matrix is provided; only the specific local build environment recorded in the report was exercised during artifact creation. Coverage reports are observational, not a claim of 100% path coverage or an external audit. Benchmark thresholds are not brittle millisecond pass/fail gates; timeout/queue/worker tests enforce broad safety bounds.
 
 ## Live provider gate — fails, does not silently skip, when unavailable
 
@@ -107,3 +107,13 @@ Run `npm run test:llamacpp`. This includes the exact empty-token mismatch, nativ
 HTTP contract tests, all fourteen tools over MCP, installed automatic host hooks,
 and the bundled Claude function adapter. Model/tokenizer outputs and host CLIs
 are explicit fixtures; run `doctor` and `test:live` on the real GGUF server too.
+
+## Shisa scaffold regression gate (0.4.2)
+
+`tests/llamacpp-scaffold.test.mjs` adds 23 tests covering alternate/absent chat
+renderers, malformed/split/aliased controls, duplicate BOS, missing or changed
+answer boundaries, literal control text in evidence, exact numeric prompt
+submission, CLI diagnostics and all fourteen tools via the real MCP subprocess.
+`test:llamacpp` and `test:providers` include this file. Existing installed-hook and
+Claude function-bundle tests now also exercise unavailable or mismatched renderers.
+These are contract fixtures, not inference with real GGUF weights.

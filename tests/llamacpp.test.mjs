@@ -62,8 +62,8 @@ test('Equal-bias recovery agrees with unrestricted oracle across seeded random d
 });
 const mutations=[
  ['missing props limit',(r,o)=>{if(r.url.endsWith('/props'))delete o.default_generation_settings.n_ctx;}],
- ['missing template prompt',(r,o)=>{if(r.url.endsWith('/apply-template'))delete o.prompt;}],
- ['changed chat template',(r,o)=>{if(r.url.endsWith('/apply-template'))o.prompt+='WRONG';}],
+ ['missing control token',(r,o)=>{if(r.url.endsWith('/tokenize')&&r.body.content==='<bos>')o.tokens=[];}],
+ ['split control token',(r,o)=>{if(r.url.endsWith('/tokenize')&&r.body.content==='<|turn>')o.tokens=[60,124];}],
  ['empty native token array',(r,o)=>{if(r.url.endsWith('/tokenize'))o.tokens=[];}],
  ['unstable appended letter',(r,o)=>{if(r.url.endsWith('/tokenize')&&r.body.content.endsWith('<channel|>A'))o.tokens[0]=999;}],
  ['multi-token letter',(r,o)=>{if(r.url.endsWith('/tokenize')&&r.body.content==='A')o.tokens=[65,65];}],

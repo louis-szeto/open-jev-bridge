@@ -1,4 +1,4 @@
-> **0.4.1:** Shisa also supports llama.cpp/GGUF via `SYSTEM_ONE_SHISA_BACKEND=llamacpp`. See [LLAMACPP.md](LLAMACPP.md). The Shisa instructions below describe the default **vLLM** backend.
+> **0.4.2:** Shisa also supports llama.cpp/GGUF via `SYSTEM_ONE_SHISA_BACKEND=llamacpp`. See [LLAMACPP.md](LLAMACPP.md). The Shisa instructions below describe the default **vLLM** backend.
 
 # Decider 35B and Shisa DE-1: local serving and adapter contracts
 

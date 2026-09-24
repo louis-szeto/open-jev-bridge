@@ -9,6 +9,29 @@ const fail=(ok,message)=>invariant(ok,`shisa/llamacpp: ${message}`,'invalid_resp
 const same=(a,b)=>a.length===b.length&&a.every((v,i)=>v===b[i]);
 export const LLAMA_OPTION_BIAS=80;
 
+// These are the literal control markers in Shisa's published text-only scaffold,
+// not token IDs assumed from a particular GGUF. Resolve them on the served tokenizer.
+export const SHISA_CONTROL_MARKERS=Object.freeze([
+ '<bos>','<|turn>','<turn|>','<|channel>','<channel|>',
+]);
+
+/** Refuse a GGUF tokenizer which renders the scaffold controls as ordinary text,
+ * inserts extra BOS/EOS, or changes their order/answer boundary. The JSON evidence
+ * escapes angle brackets, so none of these control IDs may originate in user data.
+ */
+export function validateLlamaScaffold(tokens,controlIds){
+ fail(Array.isArray(controlIds)&&controlIds.length===SHISA_CONTROL_MARKERS.length&&
+  controlIds.every(id=>Number.isSafeInteger(id)&&id>=0)&&new Set(controlIds).size===controlIds.length,
+  'scaffold control markers must have distinct single-token encodings');
+ fail(Array.isArray(tokens)&&tokens.length>0&&tokens.every(id=>Number.isSafeInteger(id)&&id>=0),
+  'invalid scaffold token ids');
+ const [bos,turn,endTurn,channel,endChannel]=controlIds,controls=new Set(controlIds);
+ const expected=[bos,turn,endTurn,turn,endTurn,turn,channel,endChannel];
+ fail(tokens[0]===bos&&tokens.at(-1)===endChannel&&same(tokens.filter(id=>controls.has(id)),expected),
+  'GGUF tokenizer changed Shisa control-token order or answer boundary; use a compatible Shisa/Gemma 4 tokenizer');
+ return tokens;
+}
+
 /** llama.cpp intentionally does NOT return vLLM's count/max_model_len fields. */
 export function llamaTokens(response){
  fail(isRecord(response)&&Array.isArray(response.tokens)&&response.tokens.length>0,
@@ -98,21 +121,32 @@ export async function askShisaLlamaCpp(request,config,urls,send){
  };
  try{
   const contextLimit=llamaContextLimit(await call(urls.props,'GET'));
+  const controlIds=[];
+  // Once per logical request, not per question. Sequential discovery also respects
+  // maxConcurrent=1 and the shared HTTP/cancellation budget in isolated hooks.
+  for(const marker of SHISA_CONTROL_MARKERS){
+   const ids=await tokenize(marker);
+   fail(ids.length===1,`GGUF tokenizer does not encode ${marker} as one control token; use a compatible Shisa/Gemma 4 tokenizer`);
+   controlIds.push(ids[0]);
+  }
+  fail(new Set(controlIds).size===controlIds.length,'scaffold control markers share token ids');
   const entries=await mapBounded(Object.entries(request.questions),config.maxConcurrent??2,async([qid,q])=>{
    const s=shisaScaffold(request.state,q);
-   const templated=await post(urls.applyTemplate,{messages:s.messages,add_generation_prompt:true,
-    chat_template_kwargs:{enable_thinking:false}});
-   fail(isRecord(templated)&&typeof templated.prompt==='string'&&templated.prompt.length>0,'missing /apply-template prompt');
-   const actual=await tokenize(templated.prompt),expected=await tokenize(s.prompt);
-   fail(same(actual,expected),'served GGUF chat template differs from the documented Shisa scaffold; check --jinja/model template');
+   // /completion accepts numeric token IDs and does not run a chat renderer.
+   // Supply the published Shisa scaffold ourselves instead of comparing it with
+   // /apply-template (whose Gemma/thinking defaults can legitimately differ).
+   // This never adopts the server's alternate prompt and is not a skip-validation
+   // switch: control markers, boundary, letters and inference receipts stay checked.
+   const actual=validateLlamaScaffold(await tokenize(s.prompt),controlIds);
    const limit=Math.min(contextLimit,config.shisaMaxPromptTokens??32768);
    invariant(actual.length+1<=limit,'shisa/llamacpp: prompt exceeds per-slot context budget; nothing was truncated','context_budget');
    const ids=[];
    for(const letter of s.letters){
-    const id=await letterToken(letter),appended=await tokenize(templated.prompt+letter);
+    const id=await letterToken(letter),appended=await tokenize(s.prompt+letter);
     fail(same(appended,[...actual,id]),'prompt + letter is not prefix-stable single-token encoding');ids.push(id);
    }
    fail(new Set(ids).size===ids.length,'option letters have duplicate token ids');
+   fail(ids.every(id=>!controlIds.includes(id)),'option letter collides with a scaffold control token');
    const params={prompt:actual,n_predict:1,stream:false,temperature:1,samplers:['temperature'],
     top_k:0,top_p:1,min_p:0,typical_p:1,dynatemp_range:0,mirostat:0,
     repeat_penalty:1,repeat_last_n:0,presence_penalty:0,frequency_penalty:0,dry_multiplier:0,
@@ -143,7 +177,8 @@ export async function askShisaLlamaCpp(request,config,urls,send){
    return [qid,shisaAnswer(q,s.keys,restrictedSoftmax(lp,temperature))];
   });
   return {model:request.model,answers:Object.fromEntries(entries),usage,bridge:{
-   transport:'shisa-llamacpp-restricted-letters',http_requests:httpRequests,readout_requests:readouts,
+   transport:'shisa-llamacpp-restricted-letters',prompt_source:'documented-shisa-scaffold',
+   control_tokens_validated:true,http_requests:httpRequests,readout_requests:readouts,
    fallback_requests:recoveries,recovery_method:'equal-option-bias-cancelled-by-restriction',
    confidence_method:'maximum_restricted_probability',score_method:'expected_zero_based_level',
    context_limit:contextLimit,temperatures:{noul:config.shisaNoulTemperature??1,

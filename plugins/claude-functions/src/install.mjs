@@ -93,7 +93,7 @@ export async function install({host='both',root=REPO_ROOT,overrides={},env=proce
       await fs.copyFile(path.join(root,'skills',name,'SKILL.md'),path.join(loc.skills,name,'SKILL.md'));
      }else{await fs.cp(path.join(root,'skills',name),path.join(loc.skills,name),{recursive:true,errorOnExist:true,force:false});undo.skills.push(name);}
     }
-    receipt.hosts[target]={root,version:'0.4.1',hookFile:loc.hooks,entries,skills:skillNames.map(n=>path.join(loc.skills,n)),skillHashes:Object.fromEntries(await Promise.all(skillNames.map(async n=>[n,hashText(await fs.readFile(path.join(root,'skills',n,'SKILL.md'),'utf8'))]))),installedAt:new Date().toISOString()};
+    receipt.hosts[target]={root,version:'0.4.2',hookFile:loc.hooks,entries,skills:skillNames.map(n=>path.join(loc.skills,n)),skillHashes:Object.fromEntries(await Promise.all(skillNames.map(async n=>[n,hashText(await fs.readFile(path.join(root,'skills',n,'SKILL.md'),'utf8'))]))),installedAt:new Date().toISOString()};
    }
    await atomicJSON(receiptFile,receipt);
   }catch(e){

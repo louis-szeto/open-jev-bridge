@@ -1,11 +1,16 @@
 // Independent llama.cpp HTTP contract fixture, not a model or actual tokenizer.
-// Uses codepoints as deterministic token ids. Production readout code is not imported.
+// Uses codepoints plus synthetic single-token Gemma controls, not a real tokenizer.
+// Production rendering/readout code is not imported.
 import http from 'node:http';
 import {once} from 'node:events';
 import assert from 'node:assert/strict';
 import {fixtureWeights} from './shisa-http.mjs';
-const encode=s=>Array.from(s,c=>c.codePointAt(0));
-const decode=ids=>ids.map(x=>String.fromCodePoint(x)).join('');
+// Reserved IDs above the Unicode codepoint range cannot collide with literal text.
+const controls=['<bos>','<|turn>','<turn|>','<|channel>','<channel|>'];
+const ids=new Map(controls.map((s,i)=>[s,0x110000+i]));
+export const llamaEncode=s=>Array.from(s.matchAll(/<bos>|<\|turn>|<turn\|>|<\|channel>|<channel\|>|[\s\S]/gu),m=>ids.get(m[0])??m[0].codePointAt(0));
+export const llamaDecode=xs=>xs.map(x=>x>=0x110000?controls[x-0x110000]:String.fromCodePoint(x)).join('');
+const encode=llamaEncode,decode=llamaDecode;
 function render(messages){
  assert.deepEqual(messages.map(m=>m.role),['system','user']);
  return `<bos><|turn>system\n${messages[0].content}<turn|>\n<|turn>user\n${messages[1].content}<turn|>\n<|turn>model\n<|channel>thought\n<channel|>`;
