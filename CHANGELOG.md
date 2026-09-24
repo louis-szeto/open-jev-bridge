@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1
+
+- Add explicit `SYSTEM_ONE_SHISA_BACKEND=llamacpp` / `--shisa-backend` for local GGUF Shisa. Preserve vLLM as default.
+- Use native tokenizer, template, props and completion contracts with per-slot context checks and complete restricted-letter readout.
+- Recover missing option rows with validated equal-bias normalization, not an unsupported vLLM prompt-logprob request.
+- Persist backend selection for direct hooks and propagate it to the bundled native Claude function plugin; allow bodyless GET in the isolated function transport.
+- Add empty-token reproduction, independent numerical oracle, all-tools API/MCP and installed-hook/function-bundle regressions.
+- Improve wrong-backend diagnostic, retain clean archive and ready-to-use function plugin.
+
+
 ## 0.4.0 — additional local decision backends
 
 - Add the `decider` profile, native typed API/model-list handling and independent score/probability rounding validation.

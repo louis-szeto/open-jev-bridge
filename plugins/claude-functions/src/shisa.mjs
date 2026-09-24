@@ -43,7 +43,7 @@ export function shisaScaffold(state, question) {
 }
 
 export function tokenization(response) {
-  failure(isRecord(response)&&Array.isArray(response.tokens)&&response.tokens.length>0,'missing tokenizer tokens');
+  failure(isRecord(response)&&Array.isArray(response.tokens)&&response.tokens.length>0,'missing tokenizer tokens (vLLM mode). For llama-server set SYSTEM_ONE_SHISA_BACKEND=llamacpp; it requires content, not prompt/messages');
   failure(response.tokens.every(x=>Number.isSafeInteger(x)&&x>=0),'invalid token ids');
   failure(response.count===response.tokens.length,'tokenizer count mismatch');
   failure(Number.isSafeInteger(response.max_model_len)&&response.max_model_len>0,'missing tokenizer context limit');
@@ -99,7 +99,7 @@ export function shisaAnswer(question, keys, probabilities) {
 }
 
 /** Bounded scheduling. Stop admitting work after the first failure; return no partial result. */
-async function mapBounded(items, limit, fn) {
+export async function mapBounded(items, limit, fn) {
   const result=new Array(items.length);let next=0,failed=false;
   await Promise.all(Array.from({length:Math.min(limit,items.length)},async()=>{
     while(!failed&&next<items.length){const i=next++;try{result[i]=await fn(items[i]);}catch(e){failed=true;throw e;}}

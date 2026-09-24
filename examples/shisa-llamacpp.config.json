@@ -1,0 +1,7 @@
+{
+  "provider": "shisa",
+  "shisaBackend": "llamacpp",
+  "url": "http://127.0.0.1:8012",
+  "model": "shisa-de-1",
+  "shisaMaxPromptTokens": 8192
+}

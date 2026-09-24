@@ -17,7 +17,7 @@ export const DEFAULTS = Object.freeze({
   autoVerify:true, autoReview:true, autoScreen:true, autoCompaction:true,
   maxEventBytes:32768, maxEvidenceBytes:1000000, maxEvidenceEvents:512,
   evidenceTtlMs:86400000, screenMaxChars:3000,
-  shisaTopLogprobs:20, shisaMaxPromptTokens:32768,
+  shisaBackend:'vllm', shisaTopLogprobs:20, shisaMaxPromptTokens:32768,
   shisaNoulTemperature:1, shisaChoiceTemperature:1, shisaScoreTemperature:1
 });
 export const endpoint = serviceEndpoints;
@@ -32,7 +32,7 @@ export function resolveConfig(overrides = {}, env = process.env, {readFile=true}
   invariant(isRecord(file) && isRecord(overrides), 'Configuration must be an object');
   for(const k of [...Object.keys(file),...Object.keys(overrides)]) invariant(Object.hasOwn(DEFAULTS,k) || ['apiKey','apiKeyFile','dataDir'].includes(k), `Unknown configuration key: ${k}`);
   const fromEnv={};
-  const variables={SYSTEM_ONE_SHISA_TOP_LOGPROBS:'shisaTopLogprobs',SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS:'shisaMaxPromptTokens',SYSTEM_ONE_SHISA_NOUL_TEMPERATURE:'shisaNoulTemperature',SYSTEM_ONE_SHISA_CHOICE_TEMPERATURE:'shisaChoiceTemperature',SYSTEM_ONE_SHISA_SCORE_TEMPERATURE:'shisaScoreTemperature',SYSTEM_ONE_AUTO_VERIFY:'autoVerify',SYSTEM_ONE_AUTO_REVIEW:'autoReview',SYSTEM_ONE_AUTO_SCREEN:'autoScreen',SYSTEM_ONE_AUTO_COMPACTION:'autoCompaction',SYSTEM_ONE_COMPACT_AT_PERCENT:'compactAtPercent',SYSTEM_ONE_PROVIDER:'provider',SYSTEM_ONE_API_KEY_FILE:'apiKeyFile',SYSTEM_ONE_URL:'url',SYSTEM_ONE_MODEL:'model',SYSTEM_ONE_API_KEY:'apiKey',SYSTEM_ONE_TIMEOUT_MS:'timeoutMs',SYSTEM_ONE_ALLOW_REMOTE:'allowRemote',SYSTEM_ONE_JEV_ALIASES:'aliases',SYSTEM_ONE_BELAY_SHADOW:'shadow'};
+  const variables={SYSTEM_ONE_SHISA_BACKEND:'shisaBackend',SYSTEM_ONE_SHISA_TOP_LOGPROBS:'shisaTopLogprobs',SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS:'shisaMaxPromptTokens',SYSTEM_ONE_SHISA_NOUL_TEMPERATURE:'shisaNoulTemperature',SYSTEM_ONE_SHISA_CHOICE_TEMPERATURE:'shisaChoiceTemperature',SYSTEM_ONE_SHISA_SCORE_TEMPERATURE:'shisaScoreTemperature',SYSTEM_ONE_AUTO_VERIFY:'autoVerify',SYSTEM_ONE_AUTO_REVIEW:'autoReview',SYSTEM_ONE_AUTO_SCREEN:'autoScreen',SYSTEM_ONE_AUTO_COMPACTION:'autoCompaction',SYSTEM_ONE_COMPACT_AT_PERCENT:'compactAtPercent',SYSTEM_ONE_PROVIDER:'provider',SYSTEM_ONE_API_KEY_FILE:'apiKeyFile',SYSTEM_ONE_URL:'url',SYSTEM_ONE_MODEL:'model',SYSTEM_ONE_API_KEY:'apiKey',SYSTEM_ONE_TIMEOUT_MS:'timeoutMs',SYSTEM_ONE_ALLOW_REMOTE:'allowRemote',SYSTEM_ONE_JEV_ALIASES:'aliases',SYSTEM_ONE_BELAY_SHADOW:'shadow'};
   for(const [k,target] of Object.entries(variables)) if(env[k] !== undefined && env[k] !== '') {
     const value=env[k];
     if(typeof DEFAULTS[target] === 'boolean') { invariant(['true','false','1','0'].includes(value),`Invalid boolean ${k}`); fromEnv[target]=value==='true'||value==='1'; }
@@ -40,6 +40,8 @@ export function resolveConfig(overrides = {}, env = process.env, {readFile=true}
     else fromEnv[target]=value;
   }
   const c={...DEFAULTS,...file,...fromEnv,...overrides,dataDir:overrides.dataDir ?? file.dataDir ?? p.data};
+  if(c.shisaBackend==='llama.cpp')c.shisaBackend='llamacpp';
+  invariant(['vllm','llamacpp'].includes(c.shisaBackend),'shisaBackend must be vllm or llamacpp');
   endpoint(c.url,c.allowRemote,c.provider);
   invariant(PROVIDERS.includes(c.provider),'Invalid provider; use generic, jev, kev, laya, decider or shisa');
   if(c.apiKeyFile!==undefined){invariant(typeof c.apiKeyFile==='string'&&isAbsolute(c.apiKeyFile),'apiKeyFile must be an absolute path');if(!c.apiKey)c.apiKey=readSecret(c.apiKeyFile);}

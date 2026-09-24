@@ -14,7 +14,7 @@ import {invariant,BridgeError} from '../src/pure.mjs';
 
 export function parseArgs(argv){
  const [command='help',...rest]=argv,options={};
- const values=new Set(['host','url','model','provider','api-key-file','event','name','file']),booleans=new Set(['allow-remote','aliases','shadow']);
+ const values=new Set(['host','url','model','provider','shisa-backend','api-key-file','event','name','file']),booleans=new Set(['allow-remote','aliases','shadow']);
  for(let i=0;i<rest.length;i++){const key=rest[i].replace(/^--/,'');invariant(rest[i].startsWith('--')&&(values.has(key)||booleans.has(key)),`Unknown option ${rest[i]}`);invariant(!(key in options),`Duplicate option ${key}`);if(booleans.has(key))options[key]=true;else{invariant(rest[i+1]!==undefined&&!rest[i+1].startsWith('--'),`Missing value for ${key}`);options[key]=rest[++i];}}
  return {command,options};
 }
@@ -25,10 +25,10 @@ async function inputJSON(options,max=4000000){
 }
 export async function main(argv=process.argv.slice(2)){
  const {command,options}=parseArgs(argv),overrides={};
- for(const [flag,key] of [['provider','provider'],['api-key-file','apiKeyFile'],['url','url'],['model','model'],['allow-remote','allowRemote'],['aliases','aliases'],['shadow','shadow']])if(options[flag]!==undefined)overrides[key]=options[flag];
+ for(const [flag,key] of [['shisa-backend','shisaBackend'],['provider','provider'],['api-key-file','apiKeyFile'],['url','url'],['model','model'],['allow-remote','allowRemote'],['aliases','aliases'],['shadow','shadow']])if(options[flag]!==undefined)overrides[key]=options[flag];
  const print=x=>process.stdout.write(JSON.stringify(x,null,2)+'\n');
  if(command==='help'||command==='--help'){
-  process.stdout.write(`open-jev-bridge 0.4.0 — provider-neutral System One MCP and hooks\n\nCommands:\n  serve                         Start stdio MCP\n  install --host both           Install MCP, skills and stable hooks via host CLIs\n  uninstall --host both         Remove only this installation's integrations\n  doctor                        Check /v1/models and all three API answer types\n  automation-status --host both Inspect installed hooks and recent automatic observations\n  call --name system_one_verify        Tool arguments as JSON on stdin or --file\n  compact                       {messages,options?} as JSON on stdin or --file\n  hook --host codex --event Stop Hook JSON on stdin (normally host-managed)\n  native-claude                  Install default Claude plugin via local marketplace\n  native-claude-functions        Install opt-in true-compaction Claude function plugin\n\nConnection flags: --url http://127.0.0.1:8009 --model kev-latest --allow-remote\nProvider: --provider generic|jev|kev|laya|decider|shisa; secret file: --api-key-file /absolute/private/key\nOther flags: --aliases --shadow\nNode >=22.16; no runtime dependencies. Read README before native installation.\n`);return;
+  process.stdout.write(`open-jev-bridge 0.4.1 — provider-neutral System One MCP and hooks\n\nCommands:\n  serve                         Start stdio MCP\n  install --host both           Install MCP, skills and stable hooks via host CLIs\n  uninstall --host both         Remove only this installation's integrations\n  doctor                        Check /v1/models and all three API answer types\n  automation-status --host both Inspect installed hooks and recent automatic observations\n  call --name system_one_verify        Tool arguments as JSON on stdin or --file\n  compact                       {messages,options?} as JSON on stdin or --file\n  hook --host codex --event Stop Hook JSON on stdin (normally host-managed)\n  native-claude                  Install default Claude plugin via local marketplace\n  native-claude-functions        Install opt-in true-compaction Claude function plugin\n\nConnection flags: --url http://127.0.0.1:8009 --model kev-latest --allow-remote\nProvider: --provider generic|jev|kev|laya|decider|shisa; secret file: --api-key-file /absolute/private/key\nShisa server: --shisa-backend vllm|llamacpp (or SYSTEM_ONE_SHISA_BACKEND)\nOther flags: --aliases --shadow\nNode >=22.16; no runtime dependencies. Read README before native installation.\n`);return;
  }
  if(command==='install'){print(await install({host:options.host??'both',overrides}));return;}
  if(command==='uninstall'){print(await uninstall({host:options.host??'both'}));return;}
@@ -54,7 +54,7 @@ export async function main(argv=process.argv.slice(2)){
  if(command==='compact'){print(await service.call('system_one_compact',await inputJSON(options)));return;}
  if(command==='doctor'){
   const status=await service.call('system_one_status',{}),probe=await service.call('system_one_query',{state:'The label is blue. There are two items.',questions:{yes:{type:'noul',instructions:'Is the label blue?'},color:{type:'choice',instructions:'What is the label?',criteria:{blue:null,red:null}},count:{type:'score',instructions:'How many items?',criteria:['zero','one','two']}}});
-  print({status:'ok',models:status.models,contract_probe:'all three response types validated',answers:probe.answers,notice:'A successful API probe is not a model-quality or native-host certification.'});return;
+  print({status:'ok',provider:config.provider,...(config.provider==='shisa'?{shisa_backend:config.shisaBackend}:{}),models:status.models,contract_probe:'all three response types validated',answers:probe.answers,notice:'A successful API probe is not a model-quality or native-host certification.'});return;
  }
  throw new BridgeError('invalid_input',`Unknown command ${command}`);
 }

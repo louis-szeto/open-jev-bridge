@@ -62,3 +62,9 @@ No equivalence of accuracy, calibration, confidence thresholds, hardware perform
 See [LOCAL_MODELS.md](LOCAL_MODELS.md) for the additional source identifiers, exact payloads and serving commands. `decider` uses native System One with 2–255 Choice options, 2–10 Score levels, four-decimal probabilities/two-decimal scores, and `models[].name`. The bundled eager CUDA wrapper honors the 35B checkpoint's `use_graphs=False` requirement. `shisa` is a different transport: verified chat/tokenization scaffold → vLLM single-token completions → restricted A–Z logprobs, with forced-prompt recovery for missing letters. Its Score mean and maximum-probability confidence are bridge-defined; they are not claimed to reproduce Jev's confidence statistic.
 
 The shared tools, ordinary automatic hooks and bundled Claude function hook use the same adapters. Additional Node/Python tests cover real HTTP/subprocesses and named synthetic neural/tokenizer fixtures. Actual Decider/Shisa weights, vLLM GPU serving and authenticated native host sessions were not available here. No live-inference or calibrated-quality parity is claimed.
+
+## Shisa llama.cpp backend (0.4.1)
+
+`SYSTEM_ONE_SHISA_BACKEND=llamacpp` selects native GGUF-server routes. The provider
+remains `shisa`, with unchanged fourteen-tool semantics. See [LLAMACPP.md](LLAMACPP.md)
+for endpoint/response differences, numeric recovery and validation boundaries.

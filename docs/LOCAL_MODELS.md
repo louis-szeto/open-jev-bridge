@@ -1,3 +1,5 @@
+> **0.4.1:** Shisa also supports llama.cpp/GGUF via `SYSTEM_ONE_SHISA_BACKEND=llamacpp`. See [LLAMACPP.md](LLAMACPP.md). The Shisa instructions below describe the default **vLLM** backend.
+
 # Decider 35B and Shisa DE-1: local serving and adapter contracts
 
 Added in Open Jev Bridge 0.4.0. Research date: 2026-09-24. This document separates the **model checkpoint**, its **serving implementation**, the **bridge translation**, and the **tests actually executed**. A Hugging Face repository is not an inference URL. No model weights are shipped in this ZIP.
@@ -130,6 +132,7 @@ Use **raw logprobs**, not processed sampling probabilities or raw logits. Keep v
 
 | JSON configuration key | Environment variable | Default |
 |---|---|---:|
+| `shisaBackend` | `SYSTEM_ONE_SHISA_BACKEND` | `vllm` (`llamacpp` for GGUF) |
 | `shisaTopLogprobs` | `SYSTEM_ONE_SHISA_TOP_LOGPROBS` | 20 |
 | `shisaMaxPromptTokens` | `SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS` | 32768 |
 | `shisaNoulTemperature` | `SYSTEM_ONE_SHISA_NOUL_TEMPERATURE` | 1.0 |

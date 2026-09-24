@@ -100,3 +100,10 @@ Offline subprocess tests isolate their HOME/config directories and strip inherit
 fixture values. This prevents a developer's active model configuration from changing
 fixture behavior. Live test/benchmark commands still deliberately use the configured
 backend and do not substitute fixtures.
+
+## llama.cpp regression gate (0.4.1)
+
+Run `npm run test:llamacpp`. This includes the exact empty-token mismatch, native
+HTTP contract tests, all fourteen tools over MCP, installed automatic host hooks,
+and the bundled Claude function adapter. Model/tokenizer outputs and host CLIs
+are explicit fixtures; run `doctor` and `test:live` on the real GGUF server too.

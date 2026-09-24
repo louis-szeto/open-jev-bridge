@@ -8,5 +8,6 @@
   "shisaMaxPromptTokens": 32768,
   "shisaNoulTemperature": 1,
   "shisaChoiceTemperature": 1,
-  "shisaScoreTemperature": 1
+  "shisaScoreTemperature": 1,
+  "shisaBackend": "vllm"
 }

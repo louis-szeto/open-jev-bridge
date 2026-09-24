@@ -2,6 +2,7 @@ import {BridgeError,invariant,isRecord,utf8Bytes} from './pure.mjs';
 import {validateRequest,RESPONSE_RULES} from './schema.mjs';
 import {validateProviderRequest,responseRules,normalizeModels} from './providers.mjs';
 import {askShisa} from './shisa.mjs';
+import {askShisaLlamaCpp} from './shisa-llamacpp.mjs';
 import {endpoint,resolveConfig} from './config.mjs';
 
 export class Semaphore {
@@ -39,7 +40,7 @@ export class SystemOneClient {
       const timer=setTimeout(()=>control.abort(new BridgeError('timeout','Shisa logical request timed out')),this.config.timeoutMs);
       const abort=()=>control.abort(signal.reason??new BridgeError('cancelled','Request cancelled'));
       if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});
-      try{response=await askShisa(body,this.config,this.urls,(url,method,payload)=>this.request(url,method,payload,control.signal));}
+      try{response=await (this.config.shisaBackend==='llamacpp'?askShisaLlamaCpp:askShisa)(body,this.config,this.urls,(url,method,payload)=>this.request(url,method,payload,control.signal));}
       catch(e){control.abort(e);throw e;}
       finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
     }else response=await this.request(this.urls.systemOne,'POST',body,signal);

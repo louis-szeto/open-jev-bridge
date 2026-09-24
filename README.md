@@ -1,8 +1,8 @@
 # Open Jev Bridge — local MCP, Claude Code and Codex hooks
 
-A provider-neutral Node.js MCP server and plugin repository combining **verbatim compaction**, **evidence-sensitive completion checks**, and **ten purpose-built judgment tools**. Connect it to hosted **Jev**, local **Kev**, local **Laya** and **Mapika Decider 35B** through included HTTP adapters, local **Shisa DE-1** through vLLM, or another compatible System One service. The Node runtime has **zero npm dependencies**. All bridge environment variables use **`SYSTEM_ONE_`**, and all canonical MCP tools use **`system_one_`**.
+A provider-neutral Node.js MCP server and plugin repository combining **verbatim compaction**, **evidence-sensitive completion checks**, and **ten purpose-built judgment tools**. Connect it to hosted **Jev**, local **Kev**, local **Laya** and **Mapika Decider 35B** through included HTTP adapters, local **Shisa DE-1** through vLLM or llama.cpp (GGUF), or another compatible System One service. The Node runtime has **zero npm dependencies**. All bridge environment variables use **`SYSTEM_ONE_`**, and all canonical MCP tools use **`system_one_`**.
 
-The common tool interface uses typed `noul`, `choice` and `score` questions. Native System One providers receive `POST /v1/systemone` with `{model, state, questions}`. The **`shisa` profile instead translates to vLLM `/tokenize` and `/v1/completions`**, validates the model-specific prompt and reads option logprobs—not generated answer text. No `response_format: "system_one"` field is invented. URL, model, optional bearer key, profile and explicit remote permission are configurable; a profile never downloads or starts a model. Default connection remains `http://127.0.0.1:8009`, model `kev-latest`, for an existing local Kev setup. There is **no automatic cloud fallback or telemetry**.
+The common tool interface uses typed `noul`, `choice` and `score` questions. Native System One providers receive `POST /v1/systemone` with `{model, state, questions}`. The **`shisa` profile selects either vLLM or llama.cpp endpoints with `SYSTEM_ONE_SHISA_BACKEND`**, validates the model-specific prompt and reads option logprobs—not generated answer text. No `response_format: "system_one"` field is invented. URL, model, optional bearer key, profile and explicit remote permission are configurable; a profile never downloads or starts a model. Default connection remains `http://127.0.0.1:8009`, model `kev-latest`, for an existing local Kev setup. There is **no automatic cloud fallback or telemetry**.
 
 Inspired by [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction), [jev-belay](https://github.com/valentynkit/jev-belay), and [jev-mcp](https://github.com/jkudish/jev-mcp). This is an independent implementation covering their principal functions, not a vendored fork or a claim of identical interfaces for every upstream version. Source findings and identifiers are in [UPSTREAM_REVIEW.md](docs/UPSTREAM_REVIEW.md).
 
@@ -14,9 +14,44 @@ Inspired by [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compact
 
 The backend may be local, on another machine, or hosted behind an authenticated HTTPS endpoint. A compatible API still needs to respect the requested question semantics and return valid probability distributions; `doctor` checks the transport/shape but does not certify model quality.
 
+## Shisa GGUF on llama.cpp (new in 0.4.1)
+
+The v0.4.0 Shisa adapter expected vLLM. For a locally running **llama-server**,
+select its native protocol explicitly; changing the URL alone is insufficient.
+The `tokens: []` / `shisa: missing tokenizer tokens` failure is covered by a
+regression test.
+
+```bash
+export SYSTEM_ONE_PROVIDER=shisa
+export SYSTEM_ONE_SHISA_BACKEND=llamacpp
+export SYSTEM_ONE_URL=http://127.0.0.1:8012
+export SYSTEM_ONE_MODEL=shisa-de-1
+export SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS=8192
+
+node bin/open-jev-bridge.mjs doctor
+# Direct installations only; use the same checkout path as before:
+node bin/open-jev-bridge.mjs install --host both
+```
+
+Keep your current GGUF server/GPU configuration; no additional model server is
+needed. Restart client/MCP processes after updating. Native Claude function-plugin
+users should refresh that plugin instead of enabling duplicate direct hooks, and
+export the same settings in the launching shell. The ready-to-use function bundle
+includes the new adapter. Existing vLLM setups keep `SYSTEM_ONE_SHISA_BACKEND=vllm`
+(the default).
+
+The native path uses `/props`, `/apply-template`, `/tokenize` with **`content`**,
+and `/completion` with native probability output. It validates the template,
+option token boundaries and the **per-slot** context limit; it does not bypass
+checks or read generated answer text. Missing-letter recovery is implemented
+without pretending llama.cpp supports vLLM's prompt-logprob API.
+
+See **[LLAMACPP.md](docs/LLAMACPP.md)** for wire formats, the recovery derivation,
+upgrade steps, serving example, targeted tests and live-validation boundaries.
+
 ## Automatic operation in Claude Code and Codex
 
-**Lifecycle automation remains enabled by default in 0.4.0.** After installation and native hook trust, routine completion checks, patch/completion review, matched external-content screening and compaction checkpoints run without the user requesting MCP calls. The agent also receives proactive tool-use instructions at session start, each prompt and after compaction.
+**Lifecycle automation remains enabled by default in 0.4.1.** After installation and native hook trust, routine completion checks, patch/completion review, matched external-content screening and compaction checkpoints run without the user requesting MCP calls. The agent also receives proactive tool-use instructions at session start, each prompt and after compaction.
 
 | Workflow | Automatic trigger | What happens |
 |---|---|---|
@@ -214,6 +249,7 @@ vllm serve shisa-ai/shisa-de-1 \
 # From the bridge repository, in a second terminal:
 unset SYSTEM_ONE_API_KEY SYSTEM_ONE_API_KEY_FILE
 export SYSTEM_ONE_PROVIDER=shisa
+export SYSTEM_ONE_SHISA_BACKEND=vllm
 export SYSTEM_ONE_MODEL=shisa-de-1
 export SYSTEM_ONE_URL=http://127.0.0.1:8012
 export SYSTEM_ONE_ALLOW_REMOTE=0
@@ -235,7 +271,7 @@ export SYSTEM_ONE_MODEL="your-served-model-id"
 node bin/open-jev-bridge.mjs doctor
 ```
 
-`generic`, `jev`, `kev`, `laya`, `decider` and `shisa` are provider profiles, not backend launch commands. `shisa` also selects the documented vLLM transport. The profiles do not replace explicit URL/model settings. Nonsecret examples are in `examples/{jev,kev,laya,decider,shisa}.config.json`; select a file with an **absolute** `OPEN_JEV_BRIDGE_CONFIG` path or copy its settings into the normal user JSON. Exported settings override that file. No `.env` file is auto-loaded.
+`generic`, `jev`, `kev`, `laya`, `decider` and `shisa` are provider profiles, not backend launch commands. `shisa` selects the documented vLLM transport by default, or native llama.cpp with `SYSTEM_ONE_SHISA_BACKEND=llamacpp`. The profiles do not replace explicit URL/model settings. Nonsecret examples are in `examples/{jev,kev,laya,decider,shisa}.config.json`; select a file with an **absolute** `OPEN_JEV_BRIDGE_CONFIG` path or copy its settings into the normal user JSON. Exported settings override that file. No `.env` file is auto-loaded.
 
 ### 2. Check this repository
 
@@ -379,7 +415,7 @@ Protect remote deployments with TLS/access controls and a trusted proxy. Do not 
 ## Test results and benchmark
 
 <!-- VALIDATION:START -->
-**592/592 Node tests and 67/67 Python adapter tests passed (659 total); zero failures or skips.** Syntax/schema/plugin checks, the coverage run and the benchmark completed with zero exit codes: **PASS**. Recorded 2026-09-24T06:54:59.956Z, v22.16.0, linux/x64. Raw evidence is generated under `reports/` by `npm run validate`; reports are deliberately excluded from the clean source ZIP. **Live Jev/Kev/Laya/Decider/Shisa inference: NOT EXECUTED. Real native-host sessions: NOT EXECUTED.**
+**673/673 Node tests and 67/67 Python adapter tests passed (740 total); zero failures or skips.** Syntax/schema/plugin checks, the coverage run and the benchmark completed with zero exit codes: **PASS**. Recorded 2026-09-24T08:26:07.523Z, v22.16.0, linux/x64. Raw evidence is generated under `reports/` by `npm run validate`; reports are deliberately excluded from the clean source ZIP. **Live Jev/Kev/Laya/Decider/Shisa inference: NOT EXECUTED. Real native-host sessions: NOT EXECUTED.**
 <!-- VALIDATION:END -->
 
 The fixture API is a deterministic local HTTP server used to establish request/response wiring. It is **not neural model inference**, and these green tests do **not** prove the model's semantic accuracy. The native host CLIs are explicit doubles in installer/e2e tests. Real model and authenticated native-host acceptance remain separate, clearly labeled gates rather than skipped cases counted as passes.
@@ -387,13 +423,13 @@ The fixture API is a deterministic local HTTP server used to establish request/r
 <!-- BENCHMARK:START -->
 | Measured operation | Samples | p50 | p95 | Throughput |
 |---|---:|---:|---:|---:|
-| direct_http_system_one | 100 | 0.733 ms | 1.593 ms | 1118.6/s |
-| stdio_mcp_to_http | 100 | 0.970 ms | 1.432 ms | 975.9/s |
-| compaction_pure_fixture | 100 | 0.290 ms | 0.595 ms | 2936.8/s |
-| verified_belay_fast_path_no_model | 1000 | 0.005 ms | 0.008 ms | 145272.6/s |
-| validate_255_rounded_options | 1000 | 0.016 ms | 0.025 ms | 52399.4/s |
-| stop_hook_process_verified_no_model | 10 | 56.126 ms | 59.724 ms | 17.6/s |
-| stop_hook_process_automatic_task_review | 10 | 93.903 ms | 103.640 ms | 10.5/s |
+| direct_http_system_one | 100 | 0.765 ms | 1.918 ms | 1114.9/s |
+| stdio_mcp_to_http | 100 | 1.003 ms | 1.566 ms | 947.2/s |
+| compaction_pure_fixture | 100 | 0.277 ms | 0.345 ms | 3331.7/s |
+| verified_belay_fast_path_no_model | 1000 | 0.005 ms | 0.009 ms | 140213.7/s |
+| validate_255_rounded_options | 1000 | 0.016 ms | 0.023 ms | 53872.1/s |
+| stop_hook_process_verified_no_model | 10 | 58.258 ms | 66.909 ms | 16.6/s |
+| stop_hook_process_automatic_task_review | 10 | 97.699 ms | 107.392 ms | 10.2/s |
 
 Environment: v22.16.0, linux/x64, AMD EPYC 9V74 80-Core Processor, 5 logical CPUs. Fixture compaction reduced serialized canonical characters by **96.63%** (17,899 → 603); this deliberately synthetic result is not a real-model retention benchmark.
 <!-- BENCHMARK:END -->
@@ -439,6 +475,7 @@ src/providers.mjs             Provider limits, rounding profiles and model-list 
 adapters/laya_server.py       Optional Laya HTTP sidecar; refuses all input truncation
 adapters/decider_server.py    Optional Decider 35B eager CUDA sidecar; exact preflight limits
 src/shisa.mjs                Pure vLLM restricted-letter translation shared with Claude functions
+src/shisa-llamacpp.mjs       Native GGUF tokenizer/template/probability adapter
 docs/LOCAL_MODELS.md          Local downloads/serving, complete payload contracts and source audit
 examples/                    Jev / Kev / Laya nonsecret configuration files
 src/client.mjs                Configured HTTP transport, budgets, queue and breaker
@@ -497,17 +534,17 @@ Original bridge code is MIT licensed. Upstream attribution and model-license sep
 
 `tests/local-models.test.mjs` checks endpoints, typed payloads, Decider hybrid rounding, Shisa prompt fidelity and restricted-softmax arithmetic, all fourteen tools, missing-letter fallbacks, malformed responses, budgets, authentication, cancellation and concurrency. `tests/local-models-e2e.test.mjs` executes CLI/MCP subprocesses and the actual installed hook commands for **both hosts and both new providers**: edit → Stop verification → real recorded check result → review gate → screening → compaction checkpoint → recovery. It also executes the bundled Claude function callback through both transports.
 
-The Decider tests run the **actual Python HTTP wrapper** with a clearly named fake neural backend, and its Python tests verify eager loading, CUDA/BF16 checks, preflight row limits and private error handling. Shisa fixtures independently implement the required vLLM wire shapes and a deliberately synthetic tokenizer. They are not real vLLM or GPU inference measurements. Runtime code never imports fixture backends. See [LOCAL_MODELS.md](docs/LOCAL_MODELS.md) for the exact API/source audit and live acceptance procedure.
+The Decider tests run the **actual Python HTTP wrapper** with a clearly named fake neural backend, and its Python tests verify eager loading, CUDA/BF16 checks, preflight row limits and private error handling. Shisa fixtures independently implement the required vLLM and llama.cpp wire shapes and deliberately synthetic tokenizers. They are not real vLLM/llama.cpp model or GPU inference measurements. Runtime code never imports fixture backends. See [LOCAL_MODELS.md](docs/LOCAL_MODELS.md) for the exact API/source audit and live acceptance procedure.
 
 <!-- PROVIDER_BENCHMARK:START -->
 **Measured adapter overhead only — synthetic HTTP/tokenizer/model fixtures, not GPU inference.** Three typed questions per logical request; 20 measured samples after three warmups. Shisa deliberately exercises two missing-letter fallback reads.
 
 | Provider/transport | p50 | p95 | HTTP calls per logical request |
 |---|---:|---:|---:|
-| decider/http | 0.945 ms | 2.782 ms | 1 |
-| decider/mcp | 1.180 ms | 2.272 ms | 1 |
-| shisa/http | 19.070 ms | 21.469 ms | 22 |
-| shisa/mcp | 17.929 ms | 22.443 ms | 22 |
+| decider/http | 0.926 ms | 2.815 ms | 1 |
+| decider/mcp | 1.471 ms | 2.922 ms | 1 |
+| shisa/http | 17.124 ms | 20.623 ms | 22 |
+| shisa/mcp | 15.298 ms | 20.441 ms | 22 |
 
 Environment: v22.16.0, linux, AMD EPYC 9V74 80-Core Processor. Reproduce with `npm run benchmark:providers`; raw samples are generated under `reports/provider-benchmark.json`. This compares adapter work on fixtures, not model inference speed or decision quality.
 <!-- PROVIDER_BENCHMARK:END -->

@@ -12,10 +12,11 @@ export function serviceEndpoints(value, allowRemote=false, provider='generic') {
   invariant(local||allowRemote, 'Non-loopback System One URL requires explicit allowRemote / --allow-remote');
   let prefix=url.pathname.replace(/\/+$/, '');
   if(provider==='decider') invariant(!prefix.endsWith('/decide'), 'decider: use /v1/systemone, not the different /decide schema');
-  for(const suffix of ['/v1/systemone','/v1/completions','/v1']) {
+  for(const suffix of ['/v1/systemone','/v1/completions','/v1',...(provider==='shisa'?['/completion']:[])]) {
     if(prefix.endsWith(suffix)) { prefix=prefix.slice(0,-suffix.length); break; }
   }
   const base=url.origin+prefix;
   return {systemOne:base+'/v1/systemone', models:base+'/v1/models',
-    completions:base+'/v1/completions', tokenize:base+'/tokenize', local};
+    completions:base+'/v1/completions', tokenize:base+'/tokenize', props:base+'/props',
+    applyTemplate:base+'/apply-template', nativeCompletion:base+'/completion', local};
 }
