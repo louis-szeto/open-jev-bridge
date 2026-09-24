@@ -501,19 +501,6 @@ docs/                        API, source review, testing and native acceptance
 
 `plugins/claude-functions/` is checked in and ready to install. `npm run build` deterministically regenerates that self-contained variant from the root implementation when the root runtime changes. The clean release still excludes lockfiles, validation reports, checksums, caches, and unrelated generated build artifacts. `npm run check` validates the source tree. Do not edit files under `plugins/claude-functions/` independently; regenerate them from the root sources.
 
-## Migration from the previous Kev-named release
-
-This is an intentional namespace change, not a hidden alias layer. The previous `KEV_*` bridge environment variables are no longer read. Use `SYSTEM_ONE_*`; `KEV_BRIDGE_CONFIG` becomes `OPEN_JEV_BRIDGE_CONFIG`, and `KEV_BRIDGE_DATA` becomes `OPEN_JEV_BRIDGE_DATA`. MCP tools become `system_one_*`, with `kev_system_one` becoming `system_one_query`. The CLI is `bin/open-jev-bridge.mjs` and the MCP registration is `open-jev-bridge`.
-
-Uninstall the old **direct** integration with its old checkout **before** installing this release, so two Stop hooks do not run:
-
-```bash
-node /absolute/path/to/kev-bridge/bin/kev-bridge.mjs uninstall --host both
-# Then use this release's backend-specific install command.
-```
-
-For old native plugins, disable/remove them through the host's plugin manager. Configuration and private checkpoints are not automatically migrated or deleted. Copy nonsecret JSON values to `~/.config/open-jev-bridge/config.json` deliberately; retarget a key file rather than copying a key into source control. Only optional `jev_*` tool aliases remain, because they explicitly support the upstream tool names; they do not choose Jev or change any credentials.
-
 ## Uninstall and troubleshooting
 
 ```bash
