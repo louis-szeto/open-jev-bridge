@@ -1,6 +1,39 @@
-# Offline CI and the v0.4.4 macOS failure
+# Offline CI
 
-## Observed evidence
+## v0.5.0: stale standalone add-on tests
+
+Run `36662426709` at commit
+`fd59eae02eafbff37395fae16a3f1172a08fa50e` failed on Ubuntu/macOS with Node
+22/24. The archived matrix results report 854 tests, 851 passes and the same
+three failures: choice, noul and score HTTP tests in
+`tests/openjev-addon.test.mjs` expected `openjev-llamacpp-addon`, while the
+integrated adapter correctly returned `openjev-llamacpp`.
+
+The retired standalone add-on suite survived a release ZIP overlay. Its 57
+scenarios already exist in `tests/openjev-sidecar.test.mjs`, with the current
+transport assertion and a shared fixture. Remove the duplicate from Git; retain
+the canonical suite unchanged. No assertion weakening, skipped tests, runtime
+changes or matrix reduction is needed. The resulting count is 804 Node tests
+(854 minus 57 duplicate scenarios plus seven source-layout regressions), and
+72 Python adapter tests.
+
+`npm run check` now checks for that exact retired path before other checks. It
+reports an actionable error without deleting anything, detects dangling symlinks
+with `lstat`, and requires the canonical sidecar suite to remain present. Tests
+cover clean layouts, overlay leftovers, symlinks, missing suites and the actual
+repository layout.
+
+For upgrades, prefer a Git update that applies tracked deletions. Extracting a
+ZIP over a nonempty directory cannot delete retired files. If the source check
+finds the old suite, review and remove only `tests/openjev-addon.test.mjs`;
+keep `tests/openjev-sidecar.test.mjs`. Use `npm run test:openjev` instead of the
+retired add-on-only test command.
+
+Failure evidence: https://github.com/louis-szeto/open-jev-bridge/actions/runs/36662426709
+
+## Historical v0.4.4 macOS investigation
+
+### Observed evidence
 
 The connected repository's run `36656176784`, commit
 `b40a30417adef6008430571cb77e7a20f2ac5db8`, passed Ubuntu with Node 22 and 24.
@@ -19,7 +52,7 @@ References:
 - https://github.com/actions/setup-python/issues/1223
 - https://github.com/python/cpython/blob/3.12/Lib/http/server.py
 
-## Reproduced defects and fixes
+### Reproduced defects and fixes
 
 **Loopback startup / reverse DNS.** Both real Python adapters share
 `create_server` in `adapters/laya_server.py`. Python's `HTTPServer.server_bind`
@@ -82,10 +115,14 @@ GitHub's step summary lists the actual stage outcomes.
 
 ## Verification boundary
 
-The delivery environment is Linux x86_64 with Node 22.16.0 and Python 3.13.5.
-Linux validation and the DNS-fault experiments were executed; no patched remote
-macOS or Node24 run is represented as already passed. The ZIP does not modify
-the remote repository or trigger a hosted run. Commit its contents to your
-repository to run the retained matrix. Actual model weights, CUDA inference,
-and native authenticated Claude/Codex sessions require `test:live`, live
-benchmarks and the documented local host acceptance checks.
+Offline tests use explicit HTTP/model/tokenizer fixtures and host CLI doubles.
+A local green result is not evidence that every hosted OS/Node combination has
+passed. Check the pull request's **Offline contracts and integration** jobs for
+the commit being reviewed; uploaded `validation.json` files record the platform,
+runtime versions, stage exit codes and test counts. The supported matrix remains
+Ubuntu/macOS with Node 22/24 and Python 3.12.
+
+Actual model weights, CUDA inference, and native authenticated Claude/Codex
+sessions require `test:live`, live benchmarks and local host acceptance checks.
+Passing offline CI must not be described as successful live-model or
+authenticated-host testing.

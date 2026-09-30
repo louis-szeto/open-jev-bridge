@@ -1,7 +1,9 @@
 import fs from 'node:fs/promises';import path from 'node:path';import {execFileSync} from 'node:child_process';import assert from 'node:assert/strict';
 import {verifyBundle} from './bundle-integrity.mjs';
+import {verifySourceLayout} from './source-layout.mjs';
 import {HOST_EVENTS} from '../src/hooks.mjs';
 import {root} from './build-plugins.mjs';import {TOOL_DEFINITIONS} from '../src/tool-schemas.mjs';
+await verifySourceLayout(root);
 const allowed=new Set(['type','properties','required','additionalProperties','items','minItems','maxItems','minProperties','maxProperties','minLength','maxLength','minimum','maximum','enum','const','anyOf','description']);
 function schema(s){for(const key of Object.keys(s))assert.ok(allowed.has(key),`Unsupported schema keyword ${key}`);for(const v of Object.values(s.properties??{}))schema(v);if(s.items)schema(s.items);if(typeof s.additionalProperties==='object')schema(s.additionalProperties);for(const v of s.anyOf??[])schema(v);}
 for(const t of TOOL_DEFINITIONS){schema(t.inputSchema);assert.equal(t.inputSchema.additionalProperties,false);assert.ok(t.description.length>20);}
