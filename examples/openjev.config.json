@@ -1,0 +1,11 @@
+{
+  "provider": "openjev",
+  "url": "http://127.0.0.1:8014",
+  "model": "openjev",
+  "openjevMaxPromptTokens": 8192,
+  "openjevMaxReadouts": 1024,
+  "openjevTemperature": 0.85,
+  "openjevNoulTemperature": 1.829074,
+  "openjevNoulBias": 0,
+  "timeoutMs": 20000
+}

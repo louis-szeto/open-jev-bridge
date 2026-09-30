@@ -1,6 +1,7 @@
 import {BridgeError,invariant,isRecord,utf8Bytes} from './pure.mjs';
 import {validateRequest,RESPONSE_RULES} from './schema.mjs';
 import {validateProviderRequest,responseRules,normalizeModels} from './providers.mjs';
+import {askOpenJevLlamaCpp} from './openjev-llamacpp.mjs';
 import {askShisa} from './shisa.mjs';
 import {askShisaLlamaCpp} from './shisa-llamacpp.mjs';
 import {endpoint,resolveConfig} from './config.mjs';
@@ -33,14 +34,14 @@ export class SystemOneClient {
   async ask(state,questions,{signal,model}={}) {
     const body={state,questions,model:model??this.config.model}; validateRequest(body,this.config.provider==='laya'?64:512);validateProviderRequest(body,this.config.provider);
     let response;
-    if(this.config.provider==='shisa'){
+    if(this.config.provider==='shisa'||this.config.provider==='openjev'){
       // One deadline covers tokenization, all question readouts, missing-letter fallbacks,
       // and time waiting for the shared HTTP semaphore. No per-question budget reset.
       const control=new AbortController();
-      const timer=setTimeout(()=>control.abort(new BridgeError('timeout','Shisa logical request timed out')),this.config.timeoutMs);
+      const timer=setTimeout(()=>control.abort(new BridgeError('timeout',`${this.config.provider} logical request timed out`)),this.config.timeoutMs);
       const abort=()=>control.abort(signal.reason??new BridgeError('cancelled','Request cancelled'));
       if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});
-      try{response=await (this.config.shisaBackend==='llamacpp'?askShisaLlamaCpp:askShisa)(body,this.config,this.urls,(url,method,payload)=>this.request(url,method,payload,control.signal));}
+      try{response=await (this.config.provider==='openjev'?askOpenJevLlamaCpp:this.config.shisaBackend==='llamacpp'?askShisaLlamaCpp:askShisa)(body,this.config,this.urls,(url,method,payload)=>this.request(url,method,payload,control.signal));}
       catch(e){control.abort(e);throw e;}
       finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
     }else response=await this.request(this.urls.systemOne,'POST',body,signal);

@@ -15,6 +15,7 @@ import json
 import math
 import os
 import socket
+import socketserver
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -275,6 +276,14 @@ def create_server(runtime: Runtime, host: str = "127.0.0.1", port: int = 8010) -
         def __init__(self, *args: Any, **kwargs: Any):
             self.slots = threading.BoundedSemaphore(16)
             super().__init__(*args, **kwargs)
+
+        def server_bind(self) -> None:
+            # HTTPServer.server_bind performs socket.getfqdn() before listen(). Our
+            # host is already a validated numeric loopback address. Reverse DNS is
+            # unnecessary and can stall macOS CI runners for >30 seconds.
+            socketserver.TCPServer.server_bind(self)
+            self.server_name = str(self.server_address[0])
+            self.server_port = self.server_address[1]
 
         def process_request(self, request: socket.socket, client_address: Any) -> None:
             if not self.slots.acquire(blocking=False):

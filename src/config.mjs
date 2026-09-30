@@ -17,6 +17,7 @@ export const DEFAULTS = Object.freeze({
   autoVerify:true, autoReview:true, autoScreen:true, autoCompaction:true,
   maxEventBytes:32768, maxEvidenceBytes:1000000, maxEvidenceEvents:512,
   evidenceTtlMs:86400000, screenMaxChars:3000,
+  openjevMaxPromptTokens:8192, openjevMaxReadouts:1024, openjevTemperature:.85, openjevNoulTemperature:1.829074, openjevNoulBias:0,
   shisaBackend:'vllm', shisaTopLogprobs:20, shisaMaxPromptTokens:32768,
   shisaNoulTemperature:1, shisaChoiceTemperature:1, shisaScoreTemperature:1
 });
@@ -32,7 +33,7 @@ export function resolveConfig(overrides = {}, env = process.env, {readFile=true}
   invariant(isRecord(file) && isRecord(overrides), 'Configuration must be an object');
   for(const k of [...Object.keys(file),...Object.keys(overrides)]) invariant(Object.hasOwn(DEFAULTS,k) || ['apiKey','apiKeyFile','dataDir'].includes(k), `Unknown configuration key: ${k}`);
   const fromEnv={};
-  const variables={SYSTEM_ONE_SHISA_BACKEND:'shisaBackend',SYSTEM_ONE_SHISA_TOP_LOGPROBS:'shisaTopLogprobs',SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS:'shisaMaxPromptTokens',SYSTEM_ONE_SHISA_NOUL_TEMPERATURE:'shisaNoulTemperature',SYSTEM_ONE_SHISA_CHOICE_TEMPERATURE:'shisaChoiceTemperature',SYSTEM_ONE_SHISA_SCORE_TEMPERATURE:'shisaScoreTemperature',SYSTEM_ONE_AUTO_VERIFY:'autoVerify',SYSTEM_ONE_AUTO_REVIEW:'autoReview',SYSTEM_ONE_AUTO_SCREEN:'autoScreen',SYSTEM_ONE_AUTO_COMPACTION:'autoCompaction',SYSTEM_ONE_COMPACT_AT_PERCENT:'compactAtPercent',SYSTEM_ONE_PROVIDER:'provider',SYSTEM_ONE_API_KEY_FILE:'apiKeyFile',SYSTEM_ONE_URL:'url',SYSTEM_ONE_MODEL:'model',SYSTEM_ONE_API_KEY:'apiKey',SYSTEM_ONE_TIMEOUT_MS:'timeoutMs',SYSTEM_ONE_ALLOW_REMOTE:'allowRemote',SYSTEM_ONE_JEV_ALIASES:'aliases',SYSTEM_ONE_BELAY_SHADOW:'shadow'};
+  const variables={SYSTEM_ONE_OPENJEV_MAX_PROMPT_TOKENS:'openjevMaxPromptTokens',SYSTEM_ONE_OPENJEV_MAX_READOUTS:'openjevMaxReadouts',SYSTEM_ONE_OPENJEV_TEMPERATURE:'openjevTemperature',SYSTEM_ONE_OPENJEV_NOUL_TEMPERATURE:'openjevNoulTemperature',SYSTEM_ONE_OPENJEV_NOUL_BIAS:'openjevNoulBias',SYSTEM_ONE_SHISA_BACKEND:'shisaBackend',SYSTEM_ONE_SHISA_TOP_LOGPROBS:'shisaTopLogprobs',SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS:'shisaMaxPromptTokens',SYSTEM_ONE_SHISA_NOUL_TEMPERATURE:'shisaNoulTemperature',SYSTEM_ONE_SHISA_CHOICE_TEMPERATURE:'shisaChoiceTemperature',SYSTEM_ONE_SHISA_SCORE_TEMPERATURE:'shisaScoreTemperature',SYSTEM_ONE_AUTO_VERIFY:'autoVerify',SYSTEM_ONE_AUTO_REVIEW:'autoReview',SYSTEM_ONE_AUTO_SCREEN:'autoScreen',SYSTEM_ONE_AUTO_COMPACTION:'autoCompaction',SYSTEM_ONE_COMPACT_AT_PERCENT:'compactAtPercent',SYSTEM_ONE_PROVIDER:'provider',SYSTEM_ONE_API_KEY_FILE:'apiKeyFile',SYSTEM_ONE_URL:'url',SYSTEM_ONE_MODEL:'model',SYSTEM_ONE_API_KEY:'apiKey',SYSTEM_ONE_TIMEOUT_MS:'timeoutMs',SYSTEM_ONE_ALLOW_REMOTE:'allowRemote',SYSTEM_ONE_JEV_ALIASES:'aliases',SYSTEM_ONE_BELAY_SHADOW:'shadow'};
   for(const [k,target] of Object.entries(variables)) if(env[k] !== undefined && env[k] !== '') {
     const value=env[k];
     if(typeof DEFAULTS[target] === 'boolean') { invariant(['true','false','1','0'].includes(value),`Invalid boolean ${k}`); fromEnv[target]=value==='true'||value==='1'; }
@@ -43,15 +44,18 @@ export function resolveConfig(overrides = {}, env = process.env, {readFile=true}
   if(c.shisaBackend==='llama.cpp')c.shisaBackend='llamacpp';
   invariant(['vllm','llamacpp'].includes(c.shisaBackend),'shisaBackend must be vllm or llamacpp');
   endpoint(c.url,c.allowRemote,c.provider);
-  invariant(PROVIDERS.includes(c.provider),'Invalid provider; use generic, jev, kev, laya, decider or shisa');
+  invariant(PROVIDERS.includes(c.provider),'Invalid provider; use generic, jev, kev, laya, decider, shisa or openjev');
   if(c.apiKeyFile!==undefined){invariant(typeof c.apiKeyFile==='string'&&isAbsolute(c.apiKeyFile),'apiKeyFile must be an absolute path');if(!c.apiKey)c.apiKey=readSecret(c.apiKeyFile);}
   invariant(typeof c.model==='string' && c.model.length>0 && c.model.length<=200,'Invalid model');
   for(const key of ['allowRemote','aliases','shadow','autoVerify','autoReview','autoScreen','autoCompaction']) invariant(typeof c[key]==='boolean',`Invalid ${key}`);
   for(const key of ['keepThreshold','minReductionRatio','belayThreshold']) invariant(Number.isFinite(c[key])&&c[key]>=0&&c[key]<=1,`Invalid ${key}`);
-  for(const key of Object.keys(DEFAULTS).filter(k=>typeof DEFAULTS[k]==='number' && !['keepThreshold','minReductionRatio','belayThreshold','shisaNoulTemperature','shisaChoiceTemperature','shisaScoreTemperature'].includes(k))) {
+  for(const key of Object.keys(DEFAULTS).filter(k=>typeof DEFAULTS[k]==='number' && !['keepThreshold','minReductionRatio','belayThreshold','shisaNoulTemperature','shisaChoiceTemperature','shisaScoreTemperature','openjevTemperature','openjevNoulTemperature','openjevNoulBias'].includes(k))) {
     invariant(Number.isSafeInteger(c[key]) && c[key]>=0,`Invalid integer ${key}`);
   }
-  for(const k of ['shisaNoulTemperature','shisaChoiceTemperature','shisaScoreTemperature']) invariant(Number.isFinite(c[k])&&c[k]>=.01&&c[k]<=100,`Invalid ${k}`);
+  invariant(c.openjevMaxPromptTokens>=64&&c.openjevMaxPromptTokens<=262144,'Invalid openjevMaxPromptTokens');
+  invariant(c.openjevMaxReadouts>=1&&c.openjevMaxReadouts<=4096,'Invalid openjevMaxReadouts');
+  invariant(Number.isFinite(c.openjevNoulBias)&&Math.abs(c.openjevNoulBias)<=50,'Invalid openjevNoulBias');
+  for(const k of ['shisaNoulTemperature','shisaChoiceTemperature','shisaScoreTemperature','openjevTemperature','openjevNoulTemperature']) invariant(Number.isFinite(c[k])&&c[k]>=.01&&c[k]<=100,`Invalid ${k}`);
   invariant(c.shisaTopLogprobs>=1&&c.shisaTopLogprobs<=100,'shisaTopLogprobs must be 1..100');
   invariant(c.shisaMaxPromptTokens>=64&&c.shisaMaxPromptTokens<=262144,'Invalid shisaMaxPromptTokens');
   invariant(c.timeoutMs>=1&&c.timeoutMs<=300000,'timeoutMs must be 1..300000');

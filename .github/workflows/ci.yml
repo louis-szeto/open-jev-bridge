@@ -2,13 +2,23 @@ name: Offline contracts and integration
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
+concurrency:
+  group: bridge-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
+    timeout-minutes: 30
     strategy:
+      # A macOS failure must not cancel another matrix leg before it uploads diagnostics.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         node: [22, 24]
     runs-on: ${{ matrix.os }}
+    env:
+      BRIDGE_CI_STAGE_TIMEOUT_MS: '600000'
+      BRIDGE_CI_TEST_TIMEOUT_MS: '120000'
+      PYTHONUNBUFFERED: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,11 +27,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      # No npm runtime/dev dependencies or lockfile; source runs directly.
-      - run: npm run validate
+      - name: Runtime versions
+        run: |
+          node --version
+          npm --version
+          python3 --version
+      # No npm dependencies, cache key, npm ci, or lockfile required.
+      # The bundle is shipped: check validates it before any test regenerates it.
+      - name: Source, contracts, integration, Python, coverage and benchmarks
+        run: npm run validate
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: validation-${{ matrix.os }}-node${{ matrix.node }}
           path: reports/
-# Live inference/native sessions are intentionally separate, not falsely skipped-green.
+          if-no-files-found: warn
+# No model credentials or weights required; native/GPU acceptance is separate.

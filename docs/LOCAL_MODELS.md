@@ -183,3 +183,9 @@ npm run test:hosts
 ```
 
 Fixtures never appear on production loading paths. Actual Decider/Shisa GPU inference and authenticated Claude/Codex runs were **not executed** in this build environment. Model-quality thresholds, real inference throughput, VRAM fit and native-client loading remain deployment acceptance checks. No missing prerequisite is counted as a successful live test.
+
+## OpenJev GGUF
+
+OpenJev now has a built-in `openjev` profile for native llama.cpp. No separate
+add-on is needed. Use the integrated [OpenJev guide](OPENJEV_GGUF.md), including
+model download, CUDA launch, provider configuration, API translation and tests.

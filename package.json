@@ -1,7 +1,7 @@
 {
   "name": "open-jev-bridge",
-  "version": "0.4.4",
-  "description": "Provider-neutral System One MCP tools and automatic Claude Code/Codex hooks, supporting Jev, Kev, Laya, Mapika Decider and Shisa DE-1",
+  "version": "0.5.0",
+  "description": "Provider-neutral System One MCP tools and automatic Claude Code/Codex hooks: Jev, Kev, Laya, Decider, Shisa and OpenJev GGUF",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -36,7 +36,8 @@
     "SECURITY.md",
     "adapters",
     "examples",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "licenses"
   ],
   "scripts": {
     "start": "node bin/open-jev-bridge.mjs serve",
@@ -57,10 +58,12 @@
     "report:readme": "node scripts/update-readme.mjs",
     "test:node": "node --test --test-concurrency=1 tests/*.test.mjs",
     "test:adapter": "python3 scripts/test-adapter.py",
-    "test:providers": "node --test --test-concurrency=1 tests/providers.test.mjs tests/laya-e2e.test.mjs tests/local-models.test.mjs tests/local-models-e2e.test.mjs tests/llamacpp.test.mjs tests/llamacpp-e2e.test.mjs tests/llamacpp-scaffold.test.mjs",
+    "test:providers": "node --test --test-concurrency=1 tests/providers.test.mjs tests/laya-e2e.test.mjs tests/local-models.test.mjs tests/local-models-e2e.test.mjs tests/llamacpp.test.mjs tests/llamacpp-e2e.test.mjs tests/llamacpp-scaffold.test.mjs tests/openjev*.test.mjs",
     "test:automation": "node --test --test-concurrency=1 tests/automation.test.mjs tests/automation-e2e.test.mjs",
     "benchmark:providers": "node benchmarks/providers.mjs",
-    "test:llamacpp": "node --test --test-concurrency=1 tests/llamacpp.test.mjs tests/llamacpp-e2e.test.mjs tests/llamacpp-scaffold.test.mjs"
+    "test:llamacpp": "node --test --test-concurrency=1 tests/llamacpp.test.mjs tests/llamacpp-e2e.test.mjs tests/llamacpp-scaffold.test.mjs",
+    "serve:openjev": "node adapters/openjev-llamacpp.mjs",
+    "test:openjev": "node --test --test-concurrency=1 tests/openjev*.test.mjs"
   },
   "private": true
 }

@@ -4,6 +4,7 @@ import {invariant,utf8Bytes,isRecord} from './pure.mjs';
 import {responseRules,validateProviderRequest} from './providers.mjs';
 import {validateRequest,RESPONSE_RULES} from './schema.mjs';
 import {serviceEndpoints} from './endpoints.mjs';
+import {askOpenJevLlamaCpp} from './openjev-llamacpp.mjs';
 import {askShisa} from './shisa.mjs';
 import {askShisaLlamaCpp} from './shisa-llamacpp.mjs';
 
@@ -31,7 +32,7 @@ export async function compactFunction(messages,options,fetchFn){
  };
  const ask=async(state,questions)=>{
   const req={state,questions,model};validateRequest(req);validateProviderRequest(req,provider);
-  const json=provider==='shisa'?await (options.shisaBackend==='llamacpp'||options.shisaBackend==='llama.cpp'?askShisaLlamaCpp:askShisa)(req,{...options,maxConcurrent:1},urls,send):await send(urls.systemOne,'POST',req);
+  const json=provider==='openjev'?await askOpenJevLlamaCpp(req,options,urls,send):provider==='shisa'?await (options.shisaBackend==='llamacpp'||options.shisaBackend==='llama.cpp'?askShisaLlamaCpp:askShisa)(req,{...options,maxConcurrent:1},urls,send):await send(urls.systemOne,'POST',req);
   invariant(isRecord(json)&&isRecord(json.answers)&&typeof json.model==='string'&&json.model.length>0,'Missing answers');
   Object.defineProperty(json,RESPONSE_RULES,{value:responseRules(provider)});return json;
  };
@@ -44,7 +45,7 @@ export const register=(on,options={})=>{
    const env=async name=>await $.env.get(name);if(options.autoCompaction===false||['false','0'].includes(await env('SYSTEM_ONE_AUTO_COMPACTION')))return next(event);const resolved={...options,provider:options.provider||await env('SYSTEM_ONE_PROVIDER')||'generic',url:options.url||await env('SYSTEM_ONE_URL')||'http://127.0.0.1:8009',model:options.model||await env('SYSTEM_ONE_MODEL')||'kev-latest',apiKey:options.apiKey||await env('SYSTEM_ONE_API_KEY'),allowRemote:options.allowRemote===true||['true','1'].includes(await env('SYSTEM_ONE_ALLOW_REMOTE'))};
    resolved.shisaBackend=options.shisaBackend||await env('SYSTEM_ONE_SHISA_BACKEND')||'vllm';
    invariant(['vllm','llamacpp','llama.cpp'].includes(resolved.shisaBackend),'Invalid Shisa backend');
-   for(const [key,name] of [['timeoutMs','SYSTEM_ONE_TIMEOUT_MS'],['shisaTopLogprobs','SYSTEM_ONE_SHISA_TOP_LOGPROBS'],['shisaMaxPromptTokens','SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS'],['shisaNoulTemperature','SYSTEM_ONE_SHISA_NOUL_TEMPERATURE'],['shisaChoiceTemperature','SYSTEM_ONE_SHISA_CHOICE_TEMPERATURE'],['shisaScoreTemperature','SYSTEM_ONE_SHISA_SCORE_TEMPERATURE']]){const v=options[key]??await env(name);if(v!==undefined){resolved[key]=Number(v);invariant(Number.isFinite(resolved[key]),`Invalid ${name}`);}}
+   for(const [key,name] of [['openjevMaxPromptTokens','SYSTEM_ONE_OPENJEV_MAX_PROMPT_TOKENS'],['openjevMaxReadouts','SYSTEM_ONE_OPENJEV_MAX_READOUTS'],['openjevTemperature','SYSTEM_ONE_OPENJEV_TEMPERATURE'],['openjevNoulTemperature','SYSTEM_ONE_OPENJEV_NOUL_TEMPERATURE'],['openjevNoulBias','SYSTEM_ONE_OPENJEV_NOUL_BIAS'],['timeoutMs','SYSTEM_ONE_TIMEOUT_MS'],['shisaTopLogprobs','SYSTEM_ONE_SHISA_TOP_LOGPROBS'],['shisaMaxPromptTokens','SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS'],['shisaNoulTemperature','SYSTEM_ONE_SHISA_NOUL_TEMPERATURE'],['shisaChoiceTemperature','SYSTEM_ONE_SHISA_CHOICE_TEMPERATURE'],['shisaScoreTemperature','SYSTEM_ONE_SHISA_SCORE_TEMPERATURE']]){const v=options[key]??await env(name);if(v!==undefined){resolved[key]=Number(v);invariant(Number.isFinite(resolved[key]),`Invalid ${name}`);}}
    const result=await compactFunction(event.messages,resolved,(u,i)=>$.http.fetch(u,i));
    if(result.stats.reductionRatio<(options.minReductionRatio??.25)){ $.ui.log('open-jev-bridge: insufficient reduction; using built-in compaction');return next(event);}
    $.ui.log(`open-jev-bridge: verbatim compaction, ${Math.round(result.stats.reductionRatio*100)}% estimated character reduction`);

@@ -98,9 +98,12 @@ test('529 overload is retried only inside an explicit retry budget',async t=>{
  const c=new SystemOneClient({url:s.url,provider:'jev',retries:1});await c.ask('s',{n:mixed.n});assert.equal(s.requests.length,2);
 });
 for(const [header,expected] of [[null,100],['',100],['0',0],['1.5',1500],['-1',100],['garbage',100],['99999',300000],['Thu, 01 Jan 1970 00:00:02 GMT',1000]])test(`Retry-After parser ${header}`,()=>assert.equal(retryDelay(header,100,1000),expected));
-test('Retry-After cannot extend total request deadline',async t=>{
- const s=await mockSystemOne(({res})=>{res.writeHead(429,{'retry-after':'10'});res.end();});t.after(()=>s.close());
- const c=new SystemOneClient({url:s.url,retries:2,timeoutMs:40});await assert.rejects(c.ask('s',{n:mixed.n}),e=>e.code==='timeout');assert.equal(s.requests.length,1);
+test('Retry-After cannot extend total request deadline',async()=>{
+ let calls=0;
+ const c=new SystemOneClient({url:'http://127.0.0.1:8009',retries:2,timeoutMs:40},{fetchImpl:async()=>{
+  calls++;return new Response('',{status:429,headers:{'retry-after':'10'}});
+ }});
+ await assert.rejects(c.ask('s',{n:mixed.n}),e=>e.code==='timeout');assert.equal(calls,1);
 });
 test('Generic config names, explicit precedence and no legacy implicit fallback',()=>{
  const env={HOME:'/tmp/test',SYSTEM_ONE_URL:'http://127.0.0.1:8010',SYSTEM_ONE_MODEL:'laya',SYSTEM_ONE_PROVIDER:'laya',SYSTEM_ONE_API_KEY:'key'};

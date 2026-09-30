@@ -78,6 +78,8 @@ export async function install({host='both',root=REPO_ROOT,overrides={},env=proce
    // Never persist a bearer token inherited from the environment.
    const prior=configOriginal===null?{}:JSON.parse(configOriginal),safeOverrides={...overrides};delete safeOverrides.apiKey;
    const connection={url:config.url,model:config.model,provider:config.provider,allowRemote:config.allowRemote,
+    openjevMaxPromptTokens:config.openjevMaxPromptTokens,openjevMaxReadouts:config.openjevMaxReadouts,
+    openjevTemperature:config.openjevTemperature,openjevNoulTemperature:config.openjevNoulTemperature,openjevNoulBias:config.openjevNoulBias,
     shisaBackend:config.shisaBackend,shisaTopLogprobs:config.shisaTopLogprobs,shisaMaxPromptTokens:config.shisaMaxPromptTokens,
     shisaNoulTemperature:config.shisaNoulTemperature,shisaChoiceTemperature:config.shisaChoiceTemperature,shisaScoreTemperature:config.shisaScoreTemperature,
     autoVerify:config.autoVerify,autoReview:config.autoReview,autoScreen:config.autoScreen,autoCompaction:config.autoCompaction,
@@ -101,7 +103,7 @@ export async function install({host='both',root=REPO_ROOT,overrides={},env=proce
      }catch(e){if(e.code!=='ENOENT')throw e;}
      await fs.cp(path.join(root,'skills',name),destination,{recursive:true});undo.skills.push(name);
     }
-    receipt.hosts[target]={root,version:'0.4.4',hookFile:loc.hooks,entries,skills:skillNames.map(n=>path.join(loc.skills,n)),skillHashes:Object.fromEntries(await Promise.all(skillNames.map(async n=>[n,hashText(await fs.readFile(path.join(root,'skills',n,'SKILL.md'),'utf8'))]))),installedAt:new Date().toISOString()};
+    receipt.hosts[target]={root,version:'0.5.0',hookFile:loc.hooks,entries,skills:skillNames.map(n=>path.join(loc.skills,n)),skillHashes:Object.fromEntries(await Promise.all(skillNames.map(async n=>[n,hashText(await fs.readFile(path.join(root,'skills',n,'SKILL.md'),'utf8'))]))),installedAt:new Date().toISOString()};
    }
    await atomicJSON(receiptFile,receipt);
   }catch(e){

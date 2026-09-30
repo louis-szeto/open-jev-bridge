@@ -12,7 +12,7 @@ export function serviceEndpoints(value, allowRemote=false, provider='generic') {
   invariant(local||allowRemote, 'Non-loopback System One URL requires explicit allowRemote / --allow-remote');
   let prefix=url.pathname.replace(/\/+$/, '');
   if(provider==='decider') invariant(!prefix.endsWith('/decide'), 'decider: use /v1/systemone, not the different /decide schema');
-  for(const suffix of ['/v1/systemone','/v1/completions','/v1',...(provider==='shisa'?['/completion']:[])]) {
+  for(const suffix of ['/v1/systemone','/v1/completions','/v1',...(['shisa','openjev'].includes(provider)?['/completion']:[])]) {
     if(prefix.endsWith(suffix)) { prefix=prefix.slice(0,-suffix.length); break; }
   }
   const base=url.origin+prefix;

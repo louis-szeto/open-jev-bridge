@@ -1,62 +1,56 @@
-/** Reproducible release gate. Stream logs to disk and bound every child process. */
+/** Reproducible offline gate, with persistent diagnostics and bounded subprocesses. */
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {durationSetting,parseTap,failureExcerpt} from './ci-support.mjs';
 
-const root = fileURLToPath(new URL('../', import.meta.url));
-const reports = path.join(root, 'reports');
-await fs.mkdir(reports, {recursive: true});
-const tests = (await fs.readdir(path.join(root, 'tests')))
-  .filter(name => name.endsWith('.test.mjs')).sort().map(name => 'tests/' + name);
-const testArgs = ['--test', '--test-concurrency=1', '--test-timeout=30000', '--test-reporter=tap'];
-const commands = [
-  ['check', [process.execPath, 'scripts/check.mjs']],
-  ['tests', [process.execPath, ...testArgs, ...tests]],
-  ['adapter', [process.env.PYTHON ?? 'python3', 'scripts/test-adapter.py']],
-  ['coverage', [process.execPath, ...testArgs, '--experimental-test-coverage', ...tests]],
-  ['benchmark', [process.execPath, 'benchmarks/run.mjs']],
-  ['provider-benchmark', [process.execPath, 'benchmarks/providers.mjs']],
+const root=fileURLToPath(new URL('../',import.meta.url)),reports=path.join(root,'reports');
+const childBudget=durationSetting(process.env.BRIDGE_CI_STAGE_TIMEOUT_MS,600000,'BRIDGE_CI_STAGE_TIMEOUT_MS');
+// Node's timeout applies to an entire test file as well as individual tests. The HTTP
+// timeout/cancellation tests keep their own small budgets; slower runners get file headroom.
+const testBudget=durationSetting(process.env.BRIDGE_CI_TEST_TIMEOUT_MS,120000,'BRIDGE_CI_TEST_TIMEOUT_MS');
+await fs.mkdir(reports,{recursive:true});
+const tests=(await fs.readdir(path.join(root,'tests'))).filter(n=>n.endsWith('.test.mjs')).sort().map(n=>'tests/'+n);
+const args=['--test','--test-concurrency=1',`--test-timeout=${testBudget}`,'--test-reporter=tap'];
+const commands=[
+ ['check',[process.execPath,'scripts/check.mjs']],
+ ['tests',[process.execPath,...args,...tests]],
+ ['adapter',[process.env.PYTHON??'python3','scripts/test-adapter.py']],
+ ['coverage',[process.execPath,...args,'--experimental-test-coverage',...tests]],
+ ['benchmark',[process.execPath,'benchmarks/run.mjs']],
+ ['provider-benchmark',[process.execPath,'benchmarks/providers.mjs']],
 ];
-const runs = [];
-for (const [name, [exe, ...args]] of commands) {
-  const start = Date.now();
-  const log = await fs.open(path.join(reports, name + '.log'), 'w');
-  // File descriptors avoid pipe buffering and preserve partial diagnostics on timeout.
-  const child = spawn(exe, args, {cwd: root, env: process.env, stdio: ['ignore', log.fd, log.fd]});
-  let timedOut = false;
-  const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, 180000);
-  const outcome = await new Promise(resolve => {
-    child.once('error', error => resolve({code: null, signal: null, error: error.message}));
-    child.once('close', (code, signal) => resolve({code, signal}));
-  });
-  clearTimeout(timer);
-  await log.close();
-  const run = {name, exit_code: outcome.code, signal: outcome.signal, timed_out: timedOut,
-    elapsed_ms: Date.now() - start, log: `reports/${name}.log`};
-  if (outcome.error) run.error = outcome.error;
-  runs.push(run);
-  console.log(`${name}: ${outcome.code === 0 ? 'PASS' : 'FAIL'} (${run.elapsed_ms}ms)`);
-  if (outcome.code !== 0) {
-    console.error((await fs.readFile(path.join(reports, name + '.log'), 'utf8')).slice(-16000));
-    break;
-  }
+// Do not accidentally report successful outputs from an earlier invocation after a failure.
+for(const n of ['validation.json','adapter-validation.json',...commands.map(([name])=>name+'.log')])await fs.rm(path.join(reports,n),{force:true});
+const runs=[];
+for(const [name,[exe,...argv]] of commands) {
+ const start=Date.now(),log=await fs.open(path.join(reports,name+'.log'),'w');
+ const child=spawn(exe,argv,{cwd:root,env:process.env,stdio:['ignore',log.fd,log.fd]});
+ let timedOut=false;
+ const timer=setTimeout(()=>{timedOut=true;child.kill('SIGKILL');},childBudget);
+ const outcome=await new Promise(resolve=>{
+  child.once('error',error=>resolve({code:null,signal:null,error:error.message}));
+  child.once('close',(code,signal)=>resolve({code,signal}));
+ });
+ clearTimeout(timer);await log.close();
+ const run={name,exit_code:outcome.code,signal:outcome.signal,timed_out:timedOut,elapsed_ms:Date.now()-start,log:`reports/${name}.log`,...(outcome.error?{error:outcome.error}:{})};
+ runs.push(run);console.log(`${name}: ${outcome.code===0?'PASS':'FAIL'} (${run.elapsed_ms}ms)`);
+ if(outcome.code!==0) {
+  const text=await fs.readFile(path.join(reports,name+'.log'),'utf8');
+  console.error('FIRST FAILURE DETAILS (full output is in '+run.log+')\n'+failureExcerpt(text));break;
+ }
 }
-const testLog = await fs.readFile(path.join(reports, 'tests.log'), 'utf8').catch(() => '');
-const count = name => Number(new RegExp(`^# ${name} (\\d+)\\s*$`, 'm').exec(testLog)?.[1] ?? 0);
-const adapter=JSON.parse(await fs.readFile(path.join(reports,'adapter-validation.json'),'utf8').catch(()=>'null'));
-const summary = {
-  generated_at: new Date().toISOString(),
-  environment: {node: process.version, platform: process.platform, arch: process.arch},
-  runs,
-  tests: {total: count('tests'), passed: count('pass'), failed: count('fail'),
-    cancelled: count('cancelled'), skipped: count('skipped')},
-  adapter_tests: adapter,
-  total_offline_tests: count('tests')+(adapter?.tests??0),
-  live_models: {status: 'NOT_EXECUTED', providers: ['jev','kev','laya','decider','shisa'], reason: 'No real model or provider credentials available; run npm run test:live against each deployment.'},
-  native_hosts: {status: 'NOT_EXECUTED', reason: 'Claude Code and Codex binaries/authenticated sessions are absent in the build environment; tests use explicit host CLI doubles.'},
-  subagents: {status: 'NOT_USED', reason: 'No subagent runner was available; direct source review and regression tests were used.'},
-  all_executed_checks_green: runs.length === 6 && adapter?.all_green===true && runs.every(run => run.exit_code === 0) && count('tests') > 0 && count('tests') === count('pass') && count('fail') === 0 && count('cancelled') === 0 && count('skipped') === 0,
+const testsRun=parseTap(await fs.readFile(path.join(reports,'tests.log'),'utf8').catch(()=>''));
+let adapter=null;try{adapter=JSON.parse(await fs.readFile(path.join(reports,'adapter-validation.json'),'utf8'));}catch{/* Not executed/invalid output is not success. */}
+const allGreen=runs.length===commands.length&&runs.every(r=>r.exit_code===0&&!r.timed_out)&&adapter?.all_green===true&&testsRun.total>0&&testsRun.total===testsRun.passed&&!testsRun.failed&&!testsRun.cancelled&&!testsRun.skipped;
+const summary={
+ generated_at:new Date().toISOString(),environment:{node:process.version,platform:process.platform,arch:process.arch},
+ timeout_budgets_ms:{stage:childBudget,test_file:testBudget},runs,tests:testsRun,adapter_tests:adapter,total_offline_tests:testsRun.total+(adapter?.tests??0),
+ live_models:{status:'NOT_EXECUTED',providers:['jev','kev','laya','decider','shisa','openjev'],reason:'Offline model/tokenizer fixtures only. Run test:live against each actual deployment.'},
+ native_hosts:{status:'NOT_EXECUTED',reason:'Native host CLI doubles only; authenticated client sessions require local acceptance checks.'},
+ all_executed_checks_green:allGreen,
 };
-await fs.writeFile(path.join(reports, 'validation.json'), JSON.stringify(summary, null, 2) + '\n');
-if (!summary.all_executed_checks_green) process.exitCode = 1;
+await fs.writeFile(path.join(reports,'validation.json'),JSON.stringify(summary,null,2)+'\n');
+if(process.env.GITHUB_STEP_SUMMARY){await fs.appendFile(process.env.GITHUB_STEP_SUMMARY,`## Offline validation — ${process.platform} / ${process.version}\n\n${runs.map(r=>`- ${r.name}: ${r.exit_code===0?'PASS':'FAIL'} (${r.elapsed_ms} ms)`).join('\n')}\n\nNode: ${testsRun.passed}/${testsRun.total}; Python: ${adapter?.tests??'not executed'}. Full logs are uploaded even on failure.\n`);}
+if(!allGreen)process.exitCode=1;

@@ -6,6 +6,12 @@ const root=fileURLToPath(new URL('../',import.meta.url)),live=process.argv.inclu
 const liveConfig=config,client=new SystemOneClient(liveConfig);let mcp,home;
 // Live children get the explicitly resolved nonsecret tuning; offline helpers strip inherited provider settings.
 const providerTuning={
+ SYSTEM_ONE_SHISA_BACKEND:config.shisaBackend,
+ SYSTEM_ONE_OPENJEV_MAX_PROMPT_TOKENS:String(config.openjevMaxPromptTokens),
+ SYSTEM_ONE_OPENJEV_MAX_READOUTS:String(config.openjevMaxReadouts),
+ SYSTEM_ONE_OPENJEV_TEMPERATURE:String(config.openjevTemperature),
+ SYSTEM_ONE_OPENJEV_NOUL_TEMPERATURE:String(config.openjevNoulTemperature),
+ SYSTEM_ONE_OPENJEV_NOUL_BIAS:String(config.openjevNoulBias),
  SYSTEM_ONE_SHISA_TOP_LOGPROBS:String(config.shisaTopLogprobs),
  SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS:String(config.shisaMaxPromptTokens),
  SYSTEM_ONE_SHISA_NOUL_TEMPERATURE:String(config.shisaNoulTemperature),

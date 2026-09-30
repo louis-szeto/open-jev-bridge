@@ -1,0 +1,27 @@
+Upstream notice retained:
+
+openjev-server
+Copyright 2026 the OpenJev contributors
+
+Licensed under the Apache License, Version 2.0. The readout prompt layouts, calibration and confidence formulas
+descend from the helper published with the OpenJev model (huggingface.co/openjev/openjev, helper/shim.py, Apache 2.0).
+The confidence formulas follow TypeSafe's published adapter (system-one-adapter-python, confidence_metrics.py).
+
+Changes in this add-on, 2026-09-28:
+The prompt/readout logic is adapted to JavaScript and a local llama.cpp server.
+The official vLLM/MLX transport is not used. It reuses Open Jev Bridge's native
+llama.cpp probability validation and equal-bias recovery. Structured inputs
+are rendered as JSON, not Python repr. Large option sets use the upstream
+hierarchical composition with bounded sequential execution. Loopback-only
+HTTP endpoints, request limits, cancellation and model alias checks are added.
+No upstream endorsement or live-model accuracy parity is claimed.
+
+Source:
+https://github.com/abhishekgahlot2/openjev-server
+Prompt: openjev_server/prompt.py blob b136993ca81140d8d6134349fc80e7361eb18b27
+Readout: openjev_server/readout.py blob a33863c5e864f9f143743f93068a4cd80fa9efdc
+Profile: profiles/openjev.json blob f97506f3ad9ff3c56b767b2ecf1b1bf04267fc4d
+
+The add-on's derived adapter file is licensed under Apache-2.0 (see the
+accompanying OPENJEV_LICENSE.txt). Existing bridge sources retain their own
+license. Model weights are not included and have separate licensing terms.

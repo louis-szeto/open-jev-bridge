@@ -76,3 +76,12 @@ match Shisa. It renders the published scaffold, verifies special control token
 IDs/order and the answer boundary, and supplies integer IDs to native completion.
 A different or disabled server chat template cannot change the prompt sent to
 inference. See [LLAMACPP.md](LLAMACPP.md) for the validation and regression tests.
+
+## OpenJev GGUF (integrated v0.5.0)
+
+The built-in `openjev` profile speaks native llama.cpp and returns the same typed
+System One tool results. Point `SYSTEM_ONE_URL` directly at the model server and
+set `SYSTEM_ONE_MODEL` to its advertised alias. It is not the `shisa` transport
+with a renamed model. The pure adapter is included in the ready-to-use Claude
+function bundle. See [OPENJEV_GGUF.md](OPENJEV_GGUF.md) for exact routes, prompt,
+probabilities, limits, calibration caveats and direct/optional-sidecar topology.

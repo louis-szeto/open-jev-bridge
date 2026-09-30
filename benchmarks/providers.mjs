@@ -6,14 +6,16 @@ import os from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {SystemOneClient} from '../src/client.mjs';
 import {requireAnswers} from '../src/schema.mjs';
+import {native as openjevHttp} from '../tests/fixtures/openjev-http.mjs';
 import {shisaHttp} from '../tests/fixtures/shisa-http.mjs';
 import {mockSystemOne,mcpProcess} from '../tests/helpers.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const questions={n:{type:'noul',instructions:'Is blue present?'},c:{type:'choice',instructions:'Choose',criteria:{a:'Blue',b:'Red',c:'Green'}},s:{type:'score',instructions:'Rate',criteria:['low','medium','high']}};
 const results=[];
-for(const provider of ['decider','shisa']){
- const server=provider==='shisa'?await shisaHttp({omit:['C']}):await mockSystemOne();let m;
- const c=new SystemOneClient({url:server.url,provider,model:provider==='shisa'?'shisa-de-1':'decider-35b-a3b'});
+for(const provider of ['decider','shisa','openjev']){
+ const cleanup=[];
+ const server=provider==='openjev'?await openjevHttp({after:fn=>cleanup.push(fn)},{missing:true}):provider==='shisa'?await shisaHttp({omit:['C']}):await mockSystemOne();let m;
+ const c=new SystemOneClient({url:server.url,provider,model:provider==='openjev'?'openjev':provider==='shisa'?'shisa-de-1':'decider-35b-a3b'});
  try{
   m=await mcpProcess(server.url,{env:{SYSTEM_ONE_PROVIDER:provider,SYSTEM_ONE_MODEL:c.config.model}});
   for(const transport of ['http','mcp']){
@@ -26,8 +28,8 @@ for(const provider of ['decider','shisa']){
    const sorted=[...samples].sort((a,b)=>a-b),r={provider,transport,samples_ms:samples,p50_ms:sorted[9],p95_ms:sorted[18],iterations:20,warmup:3,http_requests_per_logical_call:(server.requests.length-before)/20};
    results.push(r);console.log(`${provider}/${transport}: p50 ${r.p50_ms.toFixed(3)}ms, p95 ${r.p95_ms.toFixed(3)}ms, HTTP calls ${r.http_requests_per_logical_call}`);
   }
- }finally{if(m)await m.close();await server.close();}
+ }finally{if(m)await m.close();if(server.close)await server.close();for(const close of cleanup)await close();}
 }
 const report={mode:'OFFLINE_ADAPTER_OVERHEAD_NOT_GPU_INFERENCE',generated_at:new Date().toISOString(),node:process.version,platform:process.platform,cpu:os.cpus()[0]?.model,
- description:'Three typed questions per logical request. Synthetic model/tokenizer outputs. Shisa misses C from top-k to exercise two forced-letter fallback readouts. No real model weights, inference accuracy or vendor latency claims.',results};
+ description:'Three typed questions per logical request. Synthetic model/tokenizer outputs. Shisa misses C from top-k to exercise two forced-letter fallback readouts. OpenJev uses native llama.cpp-shaped endpoints and equal-bias missing-letter recovery. No real model weights, inference accuracy or vendor latency claims.',results};
 await fs.mkdir(root+'reports',{recursive:true});await fs.writeFile(root+'reports/provider-benchmark.json',JSON.stringify(report,null,2)+'\n');

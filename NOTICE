@@ -13,3 +13,10 @@ Additional interface research for 0.4.0:
 - shisa-ai/shisa-de-1 (Apache-2.0 model card): restricted-letter prompt/readout contract and chat scaffold.
 - vllm-project/vllm (Apache-2.0): HTTP tokenization/completion protocol definitions.
 No model weights or complete upstream runtime sources are redistributed here. Local wrappers, translations and explicitly synthetic tests are bridge implementations; sources/identifiers are recorded in docs/LOCAL_MODELS.md.
+
+OpenJev integration (src/openjev-llamacpp.mjs)
+Prompt layouts, probability calibration and confidence formulas are adapted from
+openjev-server and OpenJev's published reference helper, with modifications for
+native llama.cpp transport, request limits and explicit validation.
+Copyright 2026 the OpenJev contributors.
+See licenses/OPENJEV_LICENSE.txt and licenses/OPENJEV_NOTICE.txt (Apache-2.0).

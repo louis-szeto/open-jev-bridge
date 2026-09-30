@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0 — integrated OpenJev GGUF and CI portability fixes
+
+- Integrate the OpenJev GGUF add-on into the repository and add a built-in `openjev`
+  provider that talks directly to llama.cpp; no extra serving layer is required.
+- Share the same pure readout implementation with the optional HTTP sidecar and
+  the ready-to-use Claude function-hook bundle; preserve all other providers.
+- Persist provider-neutral OpenJev configuration and include README/example settings.
+- Add API, all-tool, MCP, automatic-hook, function-hook and optional-sidecar tests.
+- Remove reverse DNS from numeric-loopback Laya/Decider server startup. An injected
+  resolver failure reproduces nine old integration failures; all pass after fixing bind.
+- Fix MCP harness cleanup after prior child exit, remove fixed protocol sleeps, and
+  isolate retry-deadline tests from network startup. Add regression tests.
+- Keep the complete Ubuntu/macOS × Node 22/24 matrix with fail-fast disabled and
+  bounded CI budgets. Surface first failures, clear stale reports and upload all logs.
+- Verify shipped function-bundle/source equivalence without rebuilding during checks.
+- Forward backend-specific settings to live benchmark subprocesses.
+- No hosted CI rerun or real GPU/native-client validation is claimed by local tests.
+
+
 ## 0.4.4 — replace bridge-owned skills by default
 
 - Direct installation now replaces the three Open Jev Bridge-owned skill directories on every install/upgrade, including stale, edited, malformed, or orphaned copies.

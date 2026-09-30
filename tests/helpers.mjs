@@ -53,7 +53,7 @@ export function verified(){const m=unverified();m.pop();m.push(assistant('',[use
 /** Offline children must not inherit real provider credentials or host config overrides. */
 export function isolatedEnv(overrides={},base=process.env){
  const inherited=Object.fromEntries(Object.entries(base).filter(([key])=>
-  !/^(SYSTEM_ONE_|OPEN_JEV_BRIDGE_)/.test(key)&&
+  !/^(SYSTEM_ONE_|OPEN_JEV_BRIDGE_|OPENJEV_)/.test(key)&&
   !['CLAUDE_CONFIG_DIR','CODEX_HOME','XDG_CONFIG_HOME','XDG_STATE_HOME'].includes(key)));
  return {...inherited,...overrides};
 }
@@ -70,14 +70,39 @@ export async function command(args,{env={},input,command=process.execPath,timeou
   const [code,signal]=await closed;return {code,signal,stdout,stderr};
  }finally{clearTimeout(timer);if(home)await fs.rm(home,{recursive:true,force:true});}
 }
+/** Wait on a predicate rather than assuming an idle runner responds within 30ms. */
+export async function waitFor(predicate,{timeout=5000,interval=5,message='condition not observed'}={}) {
+ const end=Date.now()+timeout;
+ while(!predicate()) {if(Date.now()>=end)throw new Error(message);await new Promise(resolve=>setTimeout(resolve,interval));}
+}
 export async function mcpProcess(url,{env={},timeout=10000}={}){
  const home=await temp(),child=spawn(process.execPath,[BIN,'serve'],{env:isolatedEnv({HOME:home,XDG_CONFIG_HOME:path.join(home,'.config'),XDG_STATE_HOME:path.join(home,'.state'),SYSTEM_ONE_URL:url,SYSTEM_ONE_TIMEOUT_MS:'2000',...env}),stdio:['pipe','pipe','pipe']});
- let seq=1,buffer='',stderr='';const pending=new Map(),messages=[];
- child.stdout.setEncoding('utf8');child.stdout.on('data',s=>{buffer+=s;let i;while((i=buffer.indexOf('\n'))!==-1){const line=buffer.slice(0,i);buffer=buffer.slice(i+1);if(!line.trim())continue;let m;try{m=JSON.parse(line);}catch{throw new Error(`Nonprotocol stdout: ${line}`);}messages.push(m);const p=pending.get(m.id);if(p){clearTimeout(p.timer);pending.delete(m.id);p.resolve(m);}}});child.stderr.on('data',s=>stderr+=s);
- const send=x=>child.stdin.write(JSON.stringify(x)+'\n');
- const request=(method,params={},id=seq++)=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(new Error(`MCP timeout: ${method}`));},timeout);pending.set(id,{resolve,reject,timer});send({jsonrpc:'2.0',id,method,params});});
- const init=await request('initialize',{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'independent-test-client',version:'1'}});assert.equal(init.result.serverInfo.name,'open-jev-bridge');send({jsonrpc:'2.0',method:'notifications/initialized'});
- return {child,request,send,messages,get stderr(){return stderr;},async close(){for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('client closed'));}pending.clear();child.stdin.end();const timer=setTimeout(()=>child.kill('SIGKILL'),1500);await once(child,'exit').catch(()=>{});clearTimeout(timer);await fs.rm(home,{recursive:true,force:true});}};
+ let seq=1,buffer='',stderr='',ended=false,closePromise;const pending=new Map(),messages=[];
+ const rejectPending=error=>{for(const p of pending.values()){clearTimeout(p.timer);p.reject(error);}pending.clear();};
+ // Subscribe immediately: waiting for 'exit' only in close() loses an earlier exit.
+ const closed=new Promise(resolve=>{
+  child.once('error',error=>{ended=true;rejectPending(error);resolve();});
+  child.once('close',()=>{ended=true;rejectPending(new Error('MCP process exited: '+stderr));resolve();});
+ });
+ child.stdin.on('error',error=>rejectPending(error));
+ child.stdout.setEncoding('utf8');child.stdout.on('data',s=>{buffer+=s;let i;while((i=buffer.indexOf('\n'))!==-1){const line=buffer.slice(0,i);buffer=buffer.slice(i+1);if(!line.trim())continue;let m;try{m=JSON.parse(line);}catch{rejectPending(new Error(`Nonprotocol stdout: ${line}`));child.kill();continue;}messages.push(m);const p=pending.get(m.id);if(p){clearTimeout(p.timer);pending.delete(m.id);p.resolve(m);}}});child.stderr.on('data',s=>stderr+=s);
+ const send=x=>{if(ended)throw new Error('MCP process already exited');child.stdin.write(JSON.stringify(x)+'\n');};
+ const request=(method,params={},id=seq++)=>new Promise((resolve,reject)=>{
+  if(ended){reject(new Error('MCP process already exited'));return;}
+  const timer=setTimeout(()=>{pending.delete(id);reject(new Error(`MCP timeout: ${method}`));},timeout);pending.set(id,{resolve,reject,timer});
+  try{send({jsonrpc:'2.0',id,method,params});}catch(error){clearTimeout(timer);pending.delete(id);reject(error);}
+ });
+ const close=()=>closePromise??=(async()=>{
+  rejectPending(new Error('client closed'));
+  if(!ended&&!child.stdin.destroyed)child.stdin.end();
+  const timer=setTimeout(()=>child.kill('SIGKILL'),1500);
+  try{await closed;}finally{clearTimeout(timer);await fs.rm(home,{recursive:true,force:true});}
+ })();
+ try{
+  const init=await request('initialize',{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'independent-test-client',version:'1'}});assert.equal(init.result.serverInfo.name,'open-jev-bridge');send({jsonrpc:'2.0',method:'notifications/initialized'});
+ }catch(error){await close();throw error;}
+ return {child,request,send,messages,closed,get stderr(){return stderr;},close,
+  waitForMessage:predicate=>waitFor(()=>messages.some(predicate),{timeout,message:'MCP response not observed'})};
 }
 export const TOOL_INPUTS={
  system_one_verify:{claims:['The label is blue'],evidence:'The label is blue.'},

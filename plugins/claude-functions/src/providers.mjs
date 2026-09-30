@@ -2,20 +2,21 @@
  * Profiles select validation; shisa also selects its native completion transport. They never change a URL, load a model, or enable remote access.
  */
 import {invariant,isRecord} from './pure.mjs';
-export const PROVIDERS=Object.freeze(['generic','jev','kev','laya','decider','shisa']);
+export const PROVIDERS=Object.freeze(['generic','jev','kev','laya','decider','shisa','openjev']);
 export function responseRules(provider='generic'){
  invariant(PROVIDERS.includes(provider),'Unknown System One provider');
  // Jev examples use two decimal places, but do not guarantee a fixed precision.
  // Current Kev emits four decimals; legacy Kev used two. The Kev profile accepts
  // both via the conservative two-decimal rounding envelope. Laya uses four.
  if(provider==='decider')return {decimals:4,scoreDecimals:2,requireConfidence:true,confidenceIsMaxProbability:true};
+ if(provider==='openjev')return {decimals:4,requireConfidence:true};
  if(provider==='shisa')return {rounded:false,requireConfidence:true};
  return {decimals:provider==='laya'?4:2,requireConfidence:provider!=='generic'};
 }
 const content=v=>typeof v==='string'||Array.isArray(v)||isRecord(v);
 export function validateProviderRequest(request,provider='generic'){
  responseRules(provider);
- if(['jev','laya','decider','shisa'].includes(provider))invariant(content(request.state),`${provider}: state must be a string, object or array`);
+ if(['jev','laya','decider','shisa','openjev'].includes(provider))invariant(content(request.state),`${provider}: state must be a string, object or array`);
  if(provider==='decider'||provider==='shisa'){
   for(const q of Object.values(request.questions)){
    invariant(typeof q.instructions!=='string'||q.instructions.length>0,`${provider}: instructions must not be empty`);
@@ -38,8 +39,8 @@ export function validateProviderRequest(request,provider='generic'){
  }
 }
 export function normalizeModels(response,provider='generic'){
- if(provider==='shisa'){
-  invariant(isRecord(response)&&response.object==='list'&&Array.isArray(response.data),'Invalid vLLM /v1/models response','invalid_response');
+ if(provider==='shisa'||provider==='openjev'){
+  invariant(isRecord(response)&&response.object==='list'&&Array.isArray(response.data),'Invalid native /v1/models response','invalid_response');
   response={...response,models:response.data};
  }
  invariant(isRecord(response)&&Array.isArray(response.models)&&response.models.length>0,'Invalid /v1/models response','invalid_response');

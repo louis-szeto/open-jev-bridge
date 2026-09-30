@@ -1,8 +1,8 @@
 # Open Jev Bridge — local MCP, Claude Code and Codex hooks
 
-A provider-neutral Node.js MCP server and plugin repository combining **verbatim compaction**, **evidence-sensitive completion checks**, and **ten purpose-built judgment tools**. Connect it to hosted **Jev**, local **Kev**, local **Laya** and **Mapika Decider 35B** through included HTTP adapters, local **Shisa DE-1** through vLLM or llama.cpp (GGUF), or another compatible System One service. The Node runtime has **zero npm dependencies**. All bridge environment variables use **`SYSTEM_ONE_`**, and all canonical MCP tools use **`system_one_`**.
+A provider-neutral Node.js MCP server and plugin repository combining **verbatim compaction**, **evidence-sensitive completion checks**, and **ten purpose-built judgment tools**. Connect it to hosted **Jev**, local **Kev**, local **Laya** and **Mapika Decider 35B** through included HTTP adapters, local **Shisa DE-1** through vLLM or llama.cpp (GGUF), **OpenJev GGUF directly through llama.cpp**, or another compatible System One service. The Node runtime has **zero npm dependencies**. All bridge environment variables use **`SYSTEM_ONE_`**, and all canonical MCP tools use **`system_one_`**.
 
-The common tool interface uses typed `noul`, `choice` and `score` questions. Native System One providers receive `POST /v1/systemone` with `{model, state, questions}`. The **`shisa` profile selects either vLLM or llama.cpp endpoints with `SYSTEM_ONE_SHISA_BACKEND`**, validates the model-specific prompt and reads option logprobs—not generated answer text. No `response_format: "system_one"` field is invented. URL, model, optional bearer key, profile and explicit remote permission are configurable; a profile never downloads or starts a model. Default connection remains `http://127.0.0.1:8009`, model `kev-latest`, for an existing local Kev setup. There is **no automatic cloud fallback or telemetry**.
+The common tool interface uses typed `noul`, `choice` and `score` questions. Native System One providers receive `POST /v1/systemone` with `{model, state, questions}`. The **`openjev` profile supplies its own native llama.cpp adapter inside this repository**; no separate add-on or System One sidecar is required. The **`shisa` profile selects either vLLM or llama.cpp endpoints with `SYSTEM_ONE_SHISA_BACKEND`**, validates the model-specific prompt and reads option logprobs—not generated answer text. No `response_format: "system_one"` field is invented. URL, model, optional bearer key, profile and explicit remote permission are configurable; a profile never downloads or starts a model. Default connection remains `http://127.0.0.1:8009`, model `kev-latest`, for an existing local Kev setup. There is **no automatic cloud fallback or telemetry**.
 
 Inspired by [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction), [jev-belay](https://github.com/valentynkit/jev-belay), and [jev-mcp](https://github.com/jkudish/jev-mcp). This is an independent implementation covering their principal functions, not a vendored fork or a claim of identical interfaces for every upstream version. Source findings and identifiers are in [UPSTREAM_REVIEW.md](docs/UPSTREAM_REVIEW.md).
 
@@ -10,9 +10,80 @@ Inspired by [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compact
 
 ## System One API compatibility
 
-**Open Jev Bridge is backend-agnostic. Any service implementing the System One HTTP contract can be used by configuring the endpoint parameters; Jev, Kev, and Laya are examples, not hard-coded dependencies.** The bridge sends `POST /v1/systemone` with `model`, `state`, and typed `questions`, and expects typed `answers` for `noul`, `choice`, and `score`. Configure `SYSTEM_ONE_URL`, `SYSTEM_ONE_MODEL`, the optional `SYSTEM_ONE_API_KEY`, `SYSTEM_ONE_ALLOW_REMOTE`, and normally `SYSTEM_ONE_PROVIDER=generic` for an otherwise compatible implementation. Native-provider profiles add known contract checks. The `shisa` profile additionally supplies a model-specific transport adapter; a generic OpenAI chat server is not automatically a System One backend.
+**Open Jev Bridge is backend-agnostic. Any service implementing the System One HTTP contract can be used by configuring the endpoint parameters; Jev, Kev, and Laya are examples, not hard-coded dependencies.** The bridge sends `POST /v1/systemone` with `model`, `state`, and typed `questions`, and expects typed `answers` for `noul`, `choice`, and `score`. Configure `SYSTEM_ONE_URL`, `SYSTEM_ONE_MODEL`, the optional `SYSTEM_ONE_API_KEY`, `SYSTEM_ONE_ALLOW_REMOTE`, and normally `SYSTEM_ONE_PROVIDER=generic` for an otherwise compatible implementation. Native-provider profiles add known contract checks. The `shisa` and `openjev` profiles additionally supply model-specific transport adapters; a generic OpenAI chat server is not automatically a System One backend.
 
 The backend may be local, on another machine, or hosted behind an authenticated HTTPS endpoint. A compatible API still needs to respect the requested question semantics and return valid probability distributions; `doctor` checks the transport/shape but does not certify model quality.
+
+## OpenJev GGUF — integrated in v0.5.0
+
+**No add-on ZIP, extra Python environment, or adapter process is needed.** The same
+MCP server, installed hooks and bundled Claude function plugin can call your
+OpenJev `llama-server` directly. Do not use the `shisa` profile for OpenJev: their
+prompt formats and probability calibration differ.
+
+```text
+Claude / Codex → open-jev-bridge → llama-server:8014 → OpenJev GGUF / CUDA
+```
+
+### Start the model (Terminal A)
+
+Download one quantization to a chosen directory; this example uses the published
+`OpenJev-Q4_K_M.gguf` file. Model weights are not included in the bridge ZIP.
+
+```bash
+mkdir -p /mnt/md0/models/openjev
+hf download openjev/openjev-GGUF OpenJev-Q4_K_M.gguf \
+  --local-dir /mnt/md0/models/openjev
+
+CUDA_VISIBLE_DEVICES=0 CUDA_MODULE_LOADING=LAZY \
+/mnt/md0/llama.cpp/build/bin/llama-server \
+  -m /mnt/md0/models/openjev/OpenJev-Q4_K_M.gguf \
+  --alias openjev --host 127.0.0.1 --port 8014 --jinja \
+  -ngl 999 -c 8192 -np 1 -t 16 -tb 16 -b 512 -ub 512 \
+  -fa on --cache-type-k f16 --cache-type-v f16
+```
+
+Change executable/model paths and CUDA device selection to match your machine.
+Use a llama.cpp build that supports this model and enough VRAM for both weights
+and context. This recipe does not automatically shard a model or certify a
+particular GPU configuration. The model card is the source for available files:
+[OpenJev GGUF](https://huggingface.co/openjev/openjev-GGUF).
+
+### Connect and install (Terminal B, repository directory)
+
+```bash
+export SYSTEM_ONE_PROVIDER=openjev
+export SYSTEM_ONE_URL=http://127.0.0.1:8014
+export SYSTEM_ONE_MODEL=openjev
+export SYSTEM_ONE_OPENJEV_MAX_PROMPT_TOKENS=8192
+unset SYSTEM_ONE_SHISA_BACKEND
+
+node bin/open-jev-bridge.mjs doctor
+# For direct installations; use the same checkout path for upgrades:
+node bin/open-jev-bridge.mjs install --host both
+node bin/open-jev-bridge.mjs automation-status --host both
+```
+
+Restart host/MCP processes afterward. Native Claude function-plugin users should
+refresh that plugin instead of adding duplicate direct Claude hooks. Export the
+same settings in the shell launching the function runtime; it cannot read the
+Node process's saved JSON settings. The supplied function bundle already contains
+OpenJev support, so no build is needed to use it.
+
+`doctor` checks `/v1/models`, the native tokenizer/template, context capacity and
+all three typed answer formats through actual inference requests. Use the exact
+`--alias` advertised by the server as `SYSTEM_ONE_MODEL`. The profile does not
+change which weights the server loaded.
+
+Optional `SYSTEM_ONE_API_KEY` (or a private `SYSTEM_ONE_API_KEY_FILE`) is forwarded
+to the local server when it is configured with authentication. No key is required
+for the loopback-only unauthenticated example. An unrelated key inherited from
+another provider should be unset for that example.
+
+Implementation and limits: **[OPENJEV_GGUF.md](docs/OPENJEV_GGUF.md)**. Migration
+from the previous port-8013 generic sidecar is simply switching to the configuration
+above. The optional sidecar is also incorporated at `adapters/openjev-llamacpp.mjs`
+and uses the same core implementation; it is not required by the direct profile.
 
 ## Shisa GGUF on llama.cpp (template fix in 0.4.2)
 
@@ -64,7 +135,7 @@ upgrade steps, serving example, targeted tests and live-validation boundaries.
 
 ## Automatic operation in Claude Code and Codex
 
-**Lifecycle automation remains enabled by default in 0.4.2.** After installation and native hook trust, routine completion checks, patch/completion review, matched external-content screening and compaction checkpoints run without the user requesting MCP calls. The agent also receives proactive tool-use instructions at session start, each prompt and after compaction.
+**Lifecycle automation is enabled by default.** After installation and native hook trust, routine completion checks, patch/completion review, matched external-content screening and compaction checkpoints run without the user requesting MCP calls. The agent also receives proactive tool-use instructions at session start, each prompt and after compaction.
 
 | Workflow | Automatic trigger | What happens |
 |---|---|---|
@@ -274,6 +345,14 @@ The bridge checks the served chat template, verifies single-token letters and pr
 
 All fourteen tools and automatic hooks use this translation, including the **already bundled Claude function-hook plugin**. Stable-host compaction remains checkpoint-based; native Claude replacement still requires its supporting runtime. Model inference quality and confidence calibration are not made equivalent by an API adapter. Shisa's approximately 48.1 GiB of weights require additional runtime memory; local-path downloads and tensor-parallel considerations are in [LOCAL_MODELS.md](docs/LOCAL_MODELS.md).
 
+#### OpenJev — direct local llama.cpp/GGUF
+
+Use `SYSTEM_ONE_PROVIDER=openjev`, `SYSTEM_ONE_URL=http://127.0.0.1:8014`,
+`SYSTEM_ONE_MODEL=openjev`, and the context cap shown in the OpenJev quick start
+above. It translates the common typed request into OpenJev prompts, validates
+complete option probabilities and returns the normal tool results. Unlike the
+old add-on recipe, no listener on port 8013 is needed.
+
 #### Other System One services
 
 ```bash
@@ -284,7 +363,7 @@ export SYSTEM_ONE_MODEL="your-served-model-id"
 node bin/open-jev-bridge.mjs doctor
 ```
 
-`generic`, `jev`, `kev`, `laya`, `decider` and `shisa` are provider profiles, not backend launch commands. `shisa` selects the documented vLLM transport by default, or native llama.cpp with `SYSTEM_ONE_SHISA_BACKEND=llamacpp`. The profiles do not replace explicit URL/model settings. Nonsecret examples are in `examples/{jev,kev,laya,decider,shisa}.config.json`; select a file with an **absolute** `OPEN_JEV_BRIDGE_CONFIG` path or copy its settings into the normal user JSON. Exported settings override that file. No `.env` file is auto-loaded.
+`generic`, `jev`, `kev`, `laya`, `decider`, `shisa` and `openjev` are provider profiles, not backend launch commands. `shisa` selects the documented vLLM transport by default, or native llama.cpp with `SYSTEM_ONE_SHISA_BACKEND=llamacpp`. The profiles do not replace explicit URL/model settings. Nonsecret examples are in `examples/{jev,kev,laya,decider,shisa,openjev}.config.json`; select a file with an **absolute** `OPEN_JEV_BRIDGE_CONFIG` path or copy its settings into the normal user JSON. Exported settings override that file. No `.env` file is auto-loaded.
 
 ### 2. Check this repository
 
@@ -391,7 +470,7 @@ Node runtime precedence: defaults → user JSON → environment → CLI override
 |---|---:|---|
 | `url` | `http://127.0.0.1:8009` | `--url`, `SYSTEM_ONE_URL`, or JSON |
 | `model` | `kev-latest` | `--model`, `SYSTEM_ONE_MODEL`, or JSON |
-| `provider` | `generic` | `--provider`, `SYSTEM_ONE_PROVIDER`, or JSON: generic / jev / kev / laya / decider / shisa |
+| `provider` | `generic` | `--provider`, `SYSTEM_ONE_PROVIDER`, or JSON: generic / jev / kev / laya / decider / shisa / openjev |
 | `shisaTopLogprobs` | `20` | `SYSTEM_ONE_SHISA_TOP_LOGPROBS`; server must allow this top-k |
 | `shisaMaxPromptTokens` | `32768` | `SYSTEM_ONE_SHISA_MAX_PROMPT_TOKENS`; also bounded by the actual tokenizer/server limit |
 | `shisaNoulTemperature` / `shisaChoiceTemperature` / `shisaScoreTemperature` | `1.0` each | `SYSTEM_ONE_SHISA_NOUL_TEMPERATURE`, `SYSTEM_ONE_SHISA_CHOICE_TEMPERATURE`, `SYSTEM_ONE_SHISA_SCORE_TEMPERATURE` |
@@ -425,10 +504,31 @@ node bin/open-jev-bridge.mjs install --host both \
 
 Protect remote deployments with TLS/access controls and a trusted proxy. Do not pass credentials in the URL. A supplied non-loopback URL is rejected without explicit opt-in. Standard Node transport refuses redirects. The default local setup never calls a Jev/TypeSafe service.
 
+### OpenJev-specific configuration
+
+These parameters are optional; the default profile values follow the published
+OpenJev reference helper. Changing them changes probability readout, not weights.
+They are persisted by direct installation and forwarded to the isolated Claude
+function runtime through the corresponding environment variables.
+
+| JSON setting | Environment variable | Default |
+|---|---|---:|
+| `openjevMaxPromptTokens` | `SYSTEM_ONE_OPENJEV_MAX_PROMPT_TOKENS` | 8192 |
+| `openjevMaxReadouts` | `SYSTEM_ONE_OPENJEV_MAX_READOUTS` | 1024 |
+| `openjevTemperature` | `SYSTEM_ONE_OPENJEV_TEMPERATURE` | 0.85 |
+| `openjevNoulTemperature` | `SYSTEM_ONE_OPENJEV_NOUL_TEMPERATURE` | 1.829074 |
+| `openjevNoulBias` | `SYSTEM_ONE_OPENJEV_NOUL_BIAS` | 0 |
+
+One `SYSTEM_ONE_TIMEOUT_MS` deadline covers **all** HTTP requests in a logical
+OpenJev call, including queue waits and missing-option recovery. The real limit is
+the lower of your configured prompt cap and the server's per-slot context. No
+input is silently truncated. Longer contexts and many options can exceed a hook
+budget; the hook falls back rather than inventing an approval.
+
 ## Test results and benchmark
 
 <!-- VALIDATION:START -->
-**696/696 Node tests and 67/67 Python adapter tests passed (763 total); zero failures or skips.** Syntax/schema/plugin checks, the coverage run and the benchmark completed with zero exit codes: **PASS**. Recorded 2026-09-24T08:50:35.911Z, v22.16.0, linux/x64. Raw evidence is generated under `reports/` by `npm run validate`; reports are deliberately excluded from the clean source ZIP. **Live Jev/Kev/Laya/Decider/Shisa inference: NOT EXECUTED. Real native-host sessions: NOT EXECUTED.**
+**797/797 Node tests and 72/72 Python adapter tests passed (869 total); zero failures or skips.** Syntax/schema/plugin checks, the coverage run and the benchmark completed with zero exit codes: **PASS**. Recorded 2026-09-30T02:00:48.483Z, v22.16.0, linux/x64. Raw evidence is generated under `reports/` by `npm run validate`; reports are deliberately excluded from the clean source ZIP. **Live Jev/Kev/Laya/Decider/Shisa/OpenJev inference: NOT EXECUTED. Real native-host sessions: NOT EXECUTED.**
 <!-- VALIDATION:END -->
 
 The fixture API is a deterministic local HTTP server used to establish request/response wiring. It is **not neural model inference**, and these green tests do **not** prove the model's semantic accuracy. The native host CLIs are explicit doubles in installer/e2e tests. Real model and authenticated native-host acceptance remain separate, clearly labeled gates rather than skipped cases counted as passes.
@@ -436,18 +536,46 @@ The fixture API is a deterministic local HTTP server used to establish request/r
 <!-- BENCHMARK:START -->
 | Measured operation | Samples | p50 | p95 | Throughput |
 |---|---:|---:|---:|---:|
-| direct_http_system_one | 100 | 0.755 ms | 1.404 ms | 1163.3/s |
-| stdio_mcp_to_http | 100 | 0.983 ms | 1.599 ms | 943.9/s |
-| compaction_pure_fixture | 100 | 0.280 ms | 0.462 ms | 3017.5/s |
-| verified_belay_fast_path_no_model | 1000 | 0.005 ms | 0.007 ms | 168373.2/s |
-| validate_255_rounded_options | 1000 | 0.016 ms | 0.024 ms | 54153.9/s |
-| stop_hook_process_verified_no_model | 10 | 55.460 ms | 57.970 ms | 17.9/s |
-| stop_hook_process_automatic_task_review | 10 | 88.928 ms | 95.641 ms | 11.1/s |
+| direct_http_system_one | 100 | 0.699 ms | 1.270 ms | 1263.1/s |
+| stdio_mcp_to_http | 100 | 1.015 ms | 1.413 ms | 978.0/s |
+| compaction_pure_fixture | 100 | 0.268 ms | 0.350 ms | 3371.9/s |
+| verified_belay_fast_path_no_model | 1000 | 0.005 ms | 0.019 ms | 139887.5/s |
+| validate_255_rounded_options | 1000 | 0.016 ms | 0.043 ms | 47321.2/s |
+| stop_hook_process_verified_no_model | 10 | 55.594 ms | 62.062 ms | 17.8/s |
+| stop_hook_process_automatic_task_review | 10 | 91.643 ms | 106.963 ms | 10.7/s |
 
 Environment: v22.16.0, linux/x64, AMD EPYC 9V74 80-Core Processor, 5 logical CPUs. Fixture compaction reduced serialized canonical characters by **96.63%** (17,899 → 603); this deliberately synthetic result is not a real-model retention benchmark.
 <!-- BENCHMARK:END -->
 
 The `stop_hook_process_automatic_task_review` case measures the default Stop review path. The separate `stop_hook_process_verified_no_model` fast-path case explicitly disables automatic patch review. HTTP/MCP measurements include local transport overhead and a deterministic fixture response, **not neural inference latency**. The pure-compaction case uses fixed discard judgments over synthetic tool output: its reduction illustrates mechanics, not expected real-world token savings or preserved-recall quality. The Stop subprocess number includes Node startup and imports; the in-process fast path does not. No cross-provider speed or quality comparison is claimed. Sample counts, warmups, p50/p95/p99, throughput, environment and raw results are recorded in `reports/benchmark.json`.
+
+### CI fixes and reproducibility in v0.5.0
+
+The earlier GitHub run passed both Ubuntu jobs but failed macOS validation with
+nine Node-test failures. Its console output contained only the final successful
+TAP tail, hiding the individual failure records. The new reporter extracts early
+failure blocks and uploads complete logs, so the same diagnostic loss does not recur.
+
+The shared Laya/Decider HTTP server previously used `HTTPServer.server_bind`,
+which calls `socket.getfqdn` before `listen`. This unnecessary reverse-DNS lookup
+is now removed: the adapter already accepts only numeric loopback addresses.
+The [setup-python macOS issue](https://github.com/actions/setup-python/issues/1223)
+documents this call blocking for over 30 seconds on affected runners. Injecting an
+unavailable resolver reproduced **nine failures** across the original twelve
+Python-backed integration scenarios; after the fix all twelve pass with the
+resolver still unavailable. This is a reproduced portability fix, not a claim
+that this local build has rerun the hosted macOS jobs.
+
+Additional fixes: MCP test cleanup handles a child that already exited; protocol
+tests wait for observed events instead of sleeping 30 ms; retry deadline tests
+separate HTTP contract behavior from TCP startup jitter; live subprocess benchmarks
+preserve the selected Shisa backend and OpenJev settings. The source check validates
+the bundled plugin **before any regeneration**. CI keeps Ubuntu/macOS and Node
+22/24, disables matrix fail-fast cancellation, uses bounded per-file/stage budgets,
+and never skips a failing platform or requires a package lockfile. Inference and
+hook deadlines have not been increased by these test-runner limits.
+
+See [CI.md](docs/CI.md) for commands, diagnosis evidence and verification boundaries.
 
 ### Run the suite
 
@@ -545,19 +673,30 @@ Original bridge code is MIT licensed. Upstream attribution and model-license sep
 
 ## New-provider test coverage
 
+OpenJev tests are part of the normal suite, not an optional add-on run:
+`npm run test:openjev` covers direct native requests, the optional System One
+sidecar, all fourteen tools, real CLI/MCP subprocesses, installed automatic
+Claude/Codex hooks and the bundled Claude function path. It also covers token
+boundaries, native response receipts, raw and recovery readouts, 255-option
+hierarchical composition, deadlines, cancellation and authentication. Every
+neural/tokenizer response in the offline suite is explicitly a fixture.
+
+
 `tests/local-models.test.mjs` checks endpoints, typed payloads, Decider hybrid rounding, Shisa prompt fidelity and restricted-softmax arithmetic, all fourteen tools, missing-letter fallbacks, malformed responses, budgets, authentication, cancellation and concurrency. `tests/local-models-e2e.test.mjs` executes CLI/MCP subprocesses and the actual installed hook commands for **both hosts and both new providers**: edit → Stop verification → real recorded check result → review gate → screening → compaction checkpoint → recovery. It also executes the bundled Claude function callback through both transports.
 
 The Decider tests run the **actual Python HTTP wrapper** with a clearly named fake neural backend, and its Python tests verify eager loading, CUDA/BF16 checks, preflight row limits and private error handling. Shisa fixtures independently implement the required vLLM and llama.cpp wire shapes and deliberately synthetic tokenizers. They are not real vLLM/llama.cpp model or GPU inference measurements. Runtime code never imports fixture backends. See [LOCAL_MODELS.md](docs/LOCAL_MODELS.md) for the exact API/source audit and live acceptance procedure.
 
 <!-- PROVIDER_BENCHMARK:START -->
-**Measured adapter overhead only — synthetic HTTP/tokenizer/model fixtures, not GPU inference.** Three typed questions per logical request; 20 measured samples after three warmups. Shisa deliberately exercises two missing-letter fallback reads.
+**Measured adapter overhead only — synthetic HTTP/tokenizer/model fixtures, not GPU inference.** Three typed questions per logical request; 20 measured samples after three warmups. Shisa and OpenJev deliberately exercise missing-letter recovery paths.
 
 | Provider/transport | p50 | p95 | HTTP calls per logical request |
 |---|---:|---:|---:|
-| decider/http | 1.087 ms | 2.262 ms | 1 |
-| decider/mcp | 1.217 ms | 2.159 ms | 1 |
-| shisa/http | 17.101 ms | 19.284 ms | 22 |
-| shisa/mcp | 14.083 ms | 17.020 ms | 22 |
+| decider/http | 0.888 ms | 1.750 ms | 1 |
+| decider/mcp | 1.579 ms | 3.025 ms | 1 |
+| shisa/http | 16.503 ms | 20.716 ms | 22 |
+| shisa/mcp | 14.624 ms | 17.941 ms | 22 |
+| openjev/http | 13.699 ms | 17.837 ms | 25 |
+| openjev/mcp | 16.396 ms | 22.543 ms | 25 |
 
 Environment: v22.16.0, linux, AMD EPYC 9V74 80-Core Processor. Reproduce with `npm run benchmark:providers`; raw samples are generated under `reports/provider-benchmark.json`. This compares adapter work on fixtures, not model inference speed or decision quality.
 <!-- PROVIDER_BENCHMARK:END -->

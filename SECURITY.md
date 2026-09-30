@@ -36,3 +36,14 @@ See docs/AUTOMATION.md for shared-session child observation handling, bounded co
 ## Native local-model adapters
 
 Decider and Shisa use explicitly configured local endpoints; no URL is inferred from model output. Shisa never treats generated text as a typed judgment. Its tokenizer, option IDs, prompt prefix, top logprobs and forced-append logprobs are validated; absent evidence is not filled with fabricated zeros. Only the declared 26-letter readout is supported. The Decider wrapper rejects truncation before GPU admission and requires eager BF16 CUDA loading. Both sidecars reuse bounded loopback HTTP plumbing and optional bearer authentication. A client timeout does not cancel already-running CUDA kernels. Native Claude owns isolated-hook I/O cancellation; the bridge enforces elapsed-budget checks between requests and before returning compaction. Calibrate thresholds separately for each backend.
+
+## Integrated OpenJev native adapter
+
+The `openjev` profile inherits endpoint allowlisting, optional bearer authentication,
+response/queue limits and a single logical request deadline. It rejects template
+changes, literal control markers in evidence, unstable option token boundaries,
+context overflow, truncated native completions, and missing/malformed probability
+readouts. The optional equal-bias recovery validates the returned sampling receipt;
+it never treats a missing option as probability zero. Quantization and reference
+calibration do not certify semantic safety. See docs/OPENJEV_GGUF.md and the retained
+Apache-2.0 notices under licenses/.
